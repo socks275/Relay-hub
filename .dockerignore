@@ -1,0 +1,10 @@
+.git
+.github
+docs
+test
+node_modules
+*.log
+.env
+.env.*
+!.env.example
+relay-hub.zip

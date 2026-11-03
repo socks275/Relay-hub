@@ -1,0 +1,30 @@
+services:
+  relay-hub:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      HOST: 0.0.0.0
+      # Uncomment to require a password:
+      # RELAY_PASS: "change-me"
+      # RELAY_USER: "relay"
+      RELAY_REPO_URL: ""
+      RELAY_LOG_LEVEL: info
+      RELAY_CACHE_TTL: 60
+      RELAY_RATE_LIMIT: 0
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    # Hardening: the proxy needs no privileges and no writable filesystem.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
