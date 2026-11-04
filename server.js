@@ -52,7 +52,7 @@ const { friendlyError } = require('./src/errors');
 /*  Configuration                                                     */
 /* ------------------------------------------------------------------ */
 
-const VERSION = '2.1.0';
+const VERSION = '2.2.0';
 const PORT = Number(process.env.PORT || 3000);
 const HOST = process.env.HOST || '0.0.0.0';
 
@@ -501,6 +501,40 @@ function wantsReader(source) {
  * @param {string} target
  * @param {{reader?:boolean, forceStream?:boolean, isDocument?:boolean, method?:string}} opts
  */
+/**
+ * Failure response for a subresource request.
+ *
+ * Images get a 1x1 transparent GIF so a broken avatar doesn't render a
+ * broken-image icon; everything else gets an empty body with a plain-text
+ * content type. Status stays accurate so the page's own error handling works.
+ */
+function sendSubresourceFailure(req, res, err, target) {
+  const accept = String(req.headers.accept || '');
+  const dest = String(req.headers['sec-fetch-dest'] || '');
+  const isImage = /^image\//.test(accept) || dest === 'image';
+  const status = err && (err.code === 'EPRIVATE' || err.code === 'EBADTARGET') ? 403 : 502;
+
+  if (isImage) {
+    const gif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+    res.writeHead(status, {
+      'content-type': 'image/gif',
+      'content-length': String(gif.length),
+      'cache-control': 'no-store',
+      'x-relay-error': (err && (err.code || 'ERROR')) || 'ERROR',
+    });
+    if (req.method === 'HEAD') return res.end();
+    return res.end(gif);
+  }
+
+  res.writeHead(status, {
+    'content-type': 'text/plain; charset=utf-8',
+    'content-length': '0',
+    'cache-control': 'no-store',
+    'x-relay-error': (err && (err.code || 'ERROR')) || 'ERROR',
+  });
+  return res.end();
+}
+
 async function proxyRequest(req, res, target, opts = {}) {
   const started = Date.now();
   const sessionId = sessionFromRequest(req) || newSession();
@@ -550,6 +584,12 @@ async function proxyRequest(req, res, target, opts = {}) {
   } catch (err) {
     clearTimeout(timer);
     log(`${colour(35, method)} ${target} → ${colour(31, 'ERROR')} ${err.code || err.message}`);
+    // A subresource (image, script, stylesheet, XHR) that fails must not dump
+    // a full HTML error document into the page — that corrupts images and
+    // breaks rendering with a wall of styled HTML in place of a 20-byte icon.
+    if (opts.subresource) {
+      return sendSubresourceFailure(req, res, err, target);
+    }
     return errorPage(req, res, 502, target, friendlyError(err, TIMEOUT));
   }
   clearTimeout(timer);
@@ -1061,6 +1101,58 @@ async function route(req, res) {
     return sendJson(req, res, 200, { session: sessionId.slice(0, 6) + '…' }, headers);
   }
 
+  if (pathname === '/api/diagnose') {
+    // Answers "is the proxy broken, or can this machine not reach the web?"
+    // by fetching a few small, well-known endpoints directly.
+    const probes = [
+      { name: 'github.com', url: 'https://github.com', expect: [200, 301, 302] },
+      { name: 'example.com', url: 'https://example.com', expect: [200] },
+      { name: 'registry.npmjs.org', url: 'https://registry.npmjs.org/-/ping', expect: [200] },
+      { name: 'en.wikipedia.org', url: 'https://en.wikipedia.org/wiki/Main_Page', expect: [200] },
+    ];
+    const results = await Promise.all(
+      probes.map(async (probe) => {
+        const started = Date.now();
+        try {
+          const r = await upstream.fetchWithRedirects(probe.url, {
+            timeout: Math.min(TIMEOUT, 8000),
+            selfHosts: selfHosts(),
+            maxRedirects: 3,
+          });
+          r.stream.destroy();
+          return {
+            host: probe.name,
+            ok: probe.expect.includes(r.status),
+            status: r.status,
+            ms: Date.now() - started,
+          };
+        } catch (err) {
+          return {
+            host: probe.name,
+            ok: false,
+            error: (err && (err.code || err.message)) || 'unknown',
+            ms: Date.now() - started,
+          };
+        }
+      })
+    );
+    const reachable = results.filter((r) => r.ok).length;
+    const verdict =
+      reachable === results.length
+        ? 'full'
+        : reachable === 0
+          ? 'no-egress'
+          : 'partial';
+    const advice = {
+      full: 'This server can reach the wider web. Proxying should work for any site that does not block datacenter IPs.',
+      partial:
+        'Some hosts are unreachable. Networks commonly allowlist only a few domains; sites outside that list will fail through no fault of the proxy.',
+      'no-egress':
+        'This server cannot reach the internet at all. The proxy is running correctly, but there is no egress — check firewall, security-group or allowlist rules.',
+    }[verdict];
+    return sendJson(req, res, 200, { verdict, advice, probes: results });
+  }
+
   if (pathname === '/healthz') {
     res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
     return res.end('ok');
@@ -1102,6 +1194,7 @@ async function route(req, res) {
       reader: wantsReader(url),
       forceStream: pathname === '/raw',
       isDocument: pathname === '/fetch',
+      subresource: pathname === '/raw',
     });
   }
 
@@ -1160,6 +1253,7 @@ async function route(req, res) {
     if (target) {
       return proxyRequest(req, res, target, {
         forceStream: !(req.headers.accept || '').includes('text/html'),
+        subresource: true,
       });
     }
   }

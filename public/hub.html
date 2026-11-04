@@ -546,6 +546,11 @@
   <div class="body">
     <div class="statgrid" id="statGrid"></div>
     <p class="kbd-hint" id="nodeDetail" style="margin-top:14px">Loading…</p>
+    <div id="diagBox" style="margin-top:16px"></div>
+    <button class="pill-btn" id="runDiag" style="margin-top:14px;padding:9px 14px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4.5 13.5H11L9.5 22 19 10h-6.5L13 2z"/></svg>
+      Test internet access
+    </button>
   </div>
 </section>
 
@@ -750,6 +755,38 @@
         $('#statGrid').innerHTML = '<div class="stat"><div class="v">—</div><div class="k">unreachable</div></div>';
       });
   }
+
+  /* ---------------- connectivity diagnostic ---------------- */
+  $('#runDiag').addEventListener('click', function () {
+    var box = $('#diagBox');
+    var btn = $('#runDiag');
+    btn.disabled = true;
+    box.innerHTML = '<p class="kbd-hint">Testing…</p>';
+    fetch('/api/diagnose', { cache: 'no-store' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        var colour = d.verdict === 'full' ? '#34d399' : d.verdict === 'partial' ? '#fbbf24' : '#f87171';
+        var rows = d.probes.map(function (p) {
+          var ok = p.ok;
+          return '<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;border-bottom:1px solid rgba(148,163,184,.1)">' +
+            '<span style="font:500 11.5px/1.4 var(--mono);color:#cfdcef">' + escapeHtml(p.host) + '</span>' +
+            '<span style="font:600 10.5px/1.4 var(--mono);color:' + (ok ? '#34d399' : '#f87171') + '">' +
+            (ok ? p.status : escapeHtml(String(p.error))) + ' · ' + p.ms + 'ms</span></div>';
+        }).join('');
+        box.innerHTML =
+          '<div style="padding:12px 14px;border-radius:11px;border:1px solid rgba(148,163,184,.18);' +
+          'background:rgba(14,22,36,.6);border-left:3px solid ' + colour + '">' +
+          '<div style="font:600 10px/1 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:' + colour + ';margin-bottom:8px">' +
+          escapeHtml(d.verdict) + '</div>' +
+          '<div style="font:400 11.5px/1.6 var(--sans);color:#b9c9dd;margin-bottom:10px">' + escapeHtml(d.advice) + '</div>' +
+          rows + '</div>';
+        btn.disabled = false;
+      })
+      .catch(function () {
+        box.innerHTML = '<p class="kbd-hint" style="color:#f87171">Could not run the test.</p>';
+        btn.disabled = false;
+      });
+  });
 
   /* ---------------- catalogues ---------------- */
   var SITES = [
