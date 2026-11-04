@@ -22,18 +22,20 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+
       - run: npm ci --ignore-scripts
-      - run: node --check server.js
       - run: npm test
-      - run: npm run build:pages
+      - run: npm run build
+
       # This repository's pre-existing Pages site used the legacy branch
       # builder (which published README.md). configure-pages' enablement
-      # only creates a *missing* site; explicitly move an existing site to
-      # the workflow builder, or create it if a fork has Pages disabled.
+      # only creates a *missing* site, so explicitly move an existing site
+      # to the workflow builder — or create it if a fork has Pages disabled.
       - name: Point GitHub Pages at this workflow
         env:
           GH_TOKEN: ${{ github.token }}
@@ -55,9 +57,10 @@ jobs:
             exit 1
           fi
           curl -fsSL -X "$method" "${headers[@]}" "$api" -d '{"build_type":"workflow"}'
+
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist-pages
+          path: dist
       - id: deployment
         uses: actions/deploy-pages@v4

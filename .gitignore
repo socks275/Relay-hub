@@ -1,5 +1,5 @@
 node_modules/
-dist-pages/
+dist/
 .env
 *.log
 .DS_Store

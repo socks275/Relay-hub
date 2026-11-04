@@ -1,40 +1,38 @@
 {
-  "name": "pine",
+  "name": "relay-hub",
   "version": "1.0.0",
-  "description": "Pine — a fast, self-hosted web hub with a Scramjet-powered browser proxy. Play, Apps, Chat, AI, Listen, Watch, Browse.",
-  "main": "server.js",
+  "private": true,
   "type": "module",
+  "description": "Relay Hub — a fast, tabbed web proxy that runs entirely on GitHub Pages.",
+  "license": "AGPL-3.0-only",
   "scripts": {
-    "start": "node server.js",
-    "dev": "PINE_LOG_LEVEL=debug node --watch server.js",
-    "build:pages": "node scripts/build-pages.mjs",
-    "test": "node --test test/unit.test.js test/integration.test.js test/smoke.test.js test/pages-smoke.test.js",
-    "check": "node --check server.js && npm test"
+    "dev": "node scripts/dev-server.mjs",
+    "build": "node scripts/build.mjs",
+    "test": "node --test test/*.test.js",
+    "check": "npm run build && npm test"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "keywords": [
     "proxy",
     "web-proxy",
     "scramjet",
     "wisp",
-    "self-hosted",
+    "github-pages",
     "unblocker"
   ],
-  "license": "AGPL-3.0-only",
+  "comments": {
+    "dependencies": "These are build inputs, not runtime deps: GitHub Pages ships static files only, so the build copies the pinned bundles out of node_modules into dist/. Nothing is installed on the deployed site."
+  },
   "dependencies": {
     "@mercuryworkshop/epoxy-transport": "3.0.2",
     "@mercuryworkshop/libcurl-transport": "2.0.6",
-    "@mercuryworkshop/proxy-transports": "1.0.2",
     "@mercuryworkshop/scramjet": "2.0.67-alpha.1",
     "@mercuryworkshop/scramjet-controller": "0.0.13",
-    "@mercuryworkshop/scramjet-utils": "0.0.3",
-    "@mercuryworkshop/wisp-js": "0.5.2",
-    "ws": "^8.18.0"
+    "@mercuryworkshop/scramjet-utils": "0.0.3"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2",
     "jsdom": "^26.1.0"
   }
 }

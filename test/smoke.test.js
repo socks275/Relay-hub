@@ -1,224 +1,236 @@
-/* Browser-smoke test (jsdom) — boots the real Pine hub in a DOM, clicks
- * through every view, asks the AI, opens a game, opens the shop, and browses
- * a fixture site via the Reader fallback (jsdom has no service workers, so
- * this also exercises the graceful-degradation path). Any uncaught page
- * error fails the test. */
-import http from "node:http";
-import { test, after } from "node:test";
+/* Relay Hub — DOM smoke test.
+ *
+ * Runs the real app modules against a jsdom copy of site/index.html with
+ * network access stubbed out, which catches the failures unit tests can't:
+ * missing element IDs, broken boot order, a tab that never renders.
+ *
+ * The Scramjet engine itself needs a real service worker, so it is not
+ * exercised here — this covers the shell and the Simple-mode pipeline.
+ */
+import test from "node:test";
 import assert from "node:assert/strict";
-import { JSDOM, VirtualConsole } from "jsdom";
-import { build } from "esbuild";
-import { createPineServer } from "../server.js";
+import { readFileSync } from "node:fs";
+import { JSDOM } from "jsdom";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
-// jsdom cannot run <script type="module">, so bundle the real client to a
-// classic script and inject it after page load. Same code, same bugs.
-const bundle = await build({
-  entryPoints: ["public/js/app.js"],
-  bundle: true, format: "iife", platform: "browser", write: false, logLevel: "silent",
-});
-const bundleCode = bundle.outputFiles[0].text;
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const HTML = readFileSync(path.join(ROOT, "site", "index.html"), "utf8");
 
-const fixture = http.createServer((req, res) => {
-  if (req.url === "/page") {
-    res.writeHead(200, { "content-type": "text/html" });
-    return res.end("<!doctype html><title>Fixture Title</title><h1>Fixture Heading</h1><p>body text</p>");
+/** Boots a fresh Relay Hub in a jsdom window. */
+async function bootApp({ html = HTML, url = "https://relay.test/" } = {}) {
+  const dom = new JSDOM(html, { url, pretendToBeVisual: true });
+  const { window } = dom;
+
+  const globals = {
+    window,
+    document: window.document,
+    location: window.location,
+    localStorage: window.localStorage,
+    HTMLElement: window.HTMLElement,
+    Element: window.Element,
+    Node: window.Node,
+    Event: window.Event,
+    CustomEvent: window.CustomEvent,
+    FormData: window.FormData,
+    URLSearchParams: window.URLSearchParams,
+    getComputedStyle: window.getComputedStyle.bind(window),
+    requestAnimationFrame: window.requestAnimationFrame?.bind(window) || ((cb) => setTimeout(cb, 0)),
+  };
+  for (const [key, value] of Object.entries(globals)) {
+    Object.defineProperty(globalThis, key, { value, configurable: true, writable: true });
   }
-  res.writeHead(404); res.end();
-});
-await new Promise(r => fixture.listen(0, "127.0.0.1", r));
-const fixturePort = fixture.address().port;
+  Object.defineProperty(globalThis, "navigator", {
+    value: window.navigator,
+    configurable: true,
+    writable: true,
+  });
 
-const pine = createPineServer({ allowPrivate: true, logLevel: "silent" });
-await new Promise(r => pine.server.listen(0, "127.0.0.1", r));
-const base = `http://127.0.0.1:${pine.server.address().port}/`;
-console.log("pine at", base, "fixture port", fixturePort);
-
-const errors = [];
-const vc = new VirtualConsole();
-vc.on("jsdomError", (e) => {
-  const s = String(e.detail?.stack || e.detail?.message || e.message || e);
-  if (/Not implemented/.test(s)) return; // jsdom gaps, stubbed below anyway
-  errors.push(s.split("\n").slice(0, 3).join("\n"));
-});
-vc.on("error", (m) => errors.push("console.error: " + m));
-
-const dom = await JSDOM.fromURL(base, {
-  resources: "usable",
-  runScripts: "dangerously",
-  pretendToBeVisual: true,
-  virtualConsole: vc,
-  beforeParse(window) {
-    window.HTMLElement.prototype.scrollIntoView = () => {};
-    window.scrollTo = () => {};
-    window.fetch = (u, o) => fetch(new URL(u, base), o);
-    // seen intro + a name, so boot goes straight to the hub
-    window.localStorage.setItem("pine.v1", JSON.stringify({
-      settings: { engine: "scramjet" },
-      profile: { name: "smoke" },
-      wallet: { coins: 150, xp: 0, owned: [], lastDaily: "2000-1-1" },
-      history: [], bookmarks: [], seenIntro: true,
-    }));
-  },
-});
-const w = dom.window;
-{
-  const s = w.document.createElement("script");
-  s.textContent = bundleCode;
-  w.document.body.appendChild(s);
-}
-const $ = (s, r = w.document) => r.querySelector(s);
-const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-async function waitFor(fn, label, ms = 9000) {
-  const t0 = Date.now();
-  let lastErr;
-  while (Date.now() - t0 < ms) {
-    try { const v = fn(); if (v) return v; } catch (e) { lastErr = e; }
-    await sleep(120);
-  }
-  throw new Error("TIMEOUT waiting: " + label + (lastErr ? " (" + lastErr.message + ")" : ""));
-}
-let failed = 0;
-const check = (name, ok, extra = "") => {
-  console.log(`${ok ? "PASS" : "FAIL"}  ${name}${extra ? " — " + extra : ""}`);
-  if (!ok) failed++;
-};
-
-try {
-  // 1. Boot
-  await waitFor(() => $("#quick-grid").children.length >= 8, "quick grid renders");
-  check("boot: quick launch rendered", true);
-  check("boot: greeting mentions name", /smoke/.test($("#greeting").textContent), $("#greeting").textContent);
-  check("boot: coins chip shows balance", $("#coins-count").textContent.includes("150"));
-  check("boot: study cards rendered", $("#study-grid").children.length === 6);
-  check("boot: title is disguised", /Student Practice Center/.test(w.document.title));
-
-  // 2. Daily claim
-  $("#daily-btn").click();
-  await sleep(150);
-  check("daily claim pays 250", $("#coins-count").textContent.includes("400"), $("#coins-count").textContent);
-  check("daily button disables after claim", $("#daily-btn").disabled === true);
-
-  // 3. View switching + catalogues
-  w.document.querySelector('.rail-btn[data-view="play"]').click();
-  await sleep(100);
-  check("play: grid has games", $("#play-grid").children.length >= 20, String($("#play-grid").children.length));
-  $("#play-search").value = "snake";
-  $("#play-search").dispatchEvent(new w.Event("input", { bubbles: true }));
-  await sleep(100);
-  check("play: search filters", $("#play-grid").children.length >= 1 && $("#play-grid").children.length <= 3, String($("#play-grid").children.length));
-
-  // 4. Open Memory game (DOM game; canvas games can't run in jsdom)
-  $("#play-search").value = "memory";
-  $("#play-search").dispatchEvent(new w.Event("input", { bubbles: true }));
-  await sleep(100);
-  $("#play-grid").children[0].click();
-  await waitFor(() => !$("#game-overlay").hidden, "game overlay opens");
-  const gameDoc = await waitFor(() => {
-    const d = $("#game-frame").contentDocument;
-    return d && d.querySelectorAll(".card").length === 16 ? d : null;
-  }, "memory board deals 16 cards", 12000);
-  check("game: memory deals cards in overlay iframe", !!gameDoc);
-  // flip two cards
-  const cards = [...gameDoc.querySelectorAll(".card")];
-  cards[0].click();
-  await sleep(50);
-  check("game: card flips", cards[0].classList.contains("open"));
-  $("#game-close").click();
-  check("game: overlay closes", $("#game-overlay").hidden === true);
-
-  // 5. Apps filter
-  w.document.querySelector('.rail-btn[data-view="apps"]').click();
-  await sleep(100);
-  check("apps: grid renders 44", $("#apps-grid").children.length === 44, String($("#apps-grid").children.length));
-
-  // 6. AI maths + conversion
-  w.document.querySelector('.rail-btn[data-view="ai"]').click();
-  await sleep(100);
-  $("#ai-input").value = "17 * 24 + sqrt(81)";
-  $("#ai-form").dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }));
-  await waitFor(() => [...w.document.querySelectorAll(".ai-msg.bot")].some(el => el.textContent.includes("417")), "AI answers maths");
-  check("ai: computes 17*24+sqrt(81)=417", true);
-  $("#ai-input").value = "10 kg to lbs";
-  $("#ai-form").dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }));
-  await waitFor(() => [...w.document.querySelectorAll(".ai-msg.bot")].some(el => el.textContent.includes("22.046")), "AI converts units");
-  check("ai: converts units", true);
-
-  // 7. Listen stations render (don't press play — no AudioContext in jsdom)
-  w.document.querySelector('.rail-btn[data-view="listen"]').click();
-  await sleep(100);
-  check("listen: 6 stations + services", $("#stations-grid").children.length === 6 && $("#listen-grid").children.length === 10);
-
-  // 8. Watch renders
-  w.document.querySelector('.rail-btn[data-view="watch"]').click();
-  await sleep(100);
-  check("watch: services render", $("#watch-grid").children.length === 16);
-
-  // 9. Settings render (all selects populated)
-  w.document.querySelector('.rail-btn[data-view="settings"]').click();
-  await sleep(250);
-  check("settings: search engines populated", $("#set-search").options.length >= 8);
-  check("settings: cloaks populated", $("#set-cloak").options.length >= 9);
-  check("settings: themes populated", $("#set-theme").options.length === 5);
-  check("settings: avatars populated", $("#set-avatars").children.length >= 10);
-
-  // 10. Browse the fixture site from Home omnibox → Scramjet unavailable in
-  //     jsdom (no SW) → should gracefully fall back to Reader and load it.
-  w.document.querySelector('.rail-btn[data-view="home"]').click();
-  await sleep(100);
-  $("#home-input").value = `http://127.0.0.1:${fixturePort}/page`;
-  $("#home-form").dispatchEvent(new w.Event("submit", { bubbles: true, cancelable: true }));
-  await waitFor(() => w.document.querySelector('.view.active')?.dataset.view === "browse", "switches to browse view");
-  check("browse: view activates + tab created", w.document.querySelectorAll(".tab").length === 1);
-  const readDoc = await waitFor(() => {
-    const f = w.document.querySelector("#frames iframe");
-    const d = f?.contentDocument;
-    return d && d.body?.textContent.includes("Fixture Heading") ? d : null;
-  }, "reader fallback loads fixture page", 15000);
-  check("browse: reader fallback shows proxied page", !!readDoc);
-  await waitFor(() => $("#addr-input").value.includes(`/page`), "address bar syncs");
-  check("browse: address bar synced", true);
-  await waitFor(() => $(".tab-title")?.textContent.includes("Fixture"), "tab title syncs from reader");
-  check("browse: tab title synced", true, $(".tab-title")?.textContent);
-  check("browse: engine select reflects Reader fallback", $("#engine-sel").value === "reader", $("#engine-sel").value);
-
-  // 11. Bookmark toggle
-  $("#nav-star").click();
-  await sleep(100);
-  check("browse: bookmark star toggles on", $("#nav-star").classList.contains("on"));
-
-  // 12. New tab + close tab
-  $("#tab-add").click();
-  await sleep(100);
-  check("tabs: second tab opens", w.document.querySelectorAll(".tab").length === 2);
-  w.document.querySelector("[data-close]")?.click();
-  await sleep(100);
-  check("tabs: close removes a tab", w.document.querySelectorAll(".tab").length === 1);
-
-  // 13. Pro/shop modal opens and renders items
-  $("#pro-btn").click();
-  await waitFor(() => w.document.querySelectorAll(".shop-item").length >= 9, "shop renders");
-  check("shop: items + pro section render", true);
-  w.document.querySelector("[data-close-modal]")?.click();
-  await sleep(80);
-  check("shop: modal closes", !w.document.querySelector("#modal-back"));
-} catch (e) {
-  failed++;
-  console.log("HARNESS ERROR:", e.message);
+  // Fresh module instances per boot, so tests do not share app state.
+  await import(`../site/js/app.js?t=${Date.now()}${Math.random()}`);
+  return { dom, window, document: window.document };
 }
 
-console.log("\n--- page errors captured:", errors.length);
-for (const e of errors.slice(0, 8)) console.log("  •", e);
-console.log(failed ? `\nRESULT: ${failed} failures` : "\nRESULT: all smoke checks passed");
+function stubFetch(handler) {
+  const calls = [];
+  const fn = async (input, init) => {
+    const url = typeof input === "string" ? input : input.url;
+    calls.push({ url, init });
+    return handler(url, init);
+  };
+  Object.defineProperty(globalThis, "fetch", { value: fn, configurable: true, writable: true });
+  return calls;
+}
 
-// The walkthrough above ran at module load (top-level await); this test is
-// its verdict. Timeout is generous for slow CI machines.
-test("browser smoke: full hub walkthrough, zero page errors", { timeout: 120000 }, () => {
-  assert.deepEqual(errors, [], `page errors: ${errors.join(" | ")}`);
-  assert.equal(failed, 0, `${failed} smoke checks failed (see log above)`);
+function htmlResponse(body, { type = "text/html", status = 200 } = {}) {
+  return new Response(body, { status, headers: { "content-type": type } });
+}
+
+const $ = (doc, id) => doc.getElementById(id);
+
+/* ------------------------------------------------------------------ */
+
+test("the app boots onto a new tab page", async () => {
+  const { document } = await bootApp();
+
+  assert.equal($(document, "tabs").querySelectorAll(".tab").length, 1, "one tab on boot");
+  assert.ok($(document, "views").querySelector(".ntp"), "new tab page rendered");
+  assert.ok($(document, "views").querySelector(".ntp .links"), "quick links rendered");
+  assert.equal($(document, "omnibox").value, "", "address bar starts empty");
 });
 
-after(() => {
-  try { dom.window.close(); } catch {}
-  pine.chat.close(); pine.server.closeAllConnections?.(); pine.server.close();
-  fixture.closeAllConnections?.(); fixture.close();
+test("the new tab button adds and activates a tab", async () => {
+  const { document } = await bootApp();
+  $(document, "new-tab").click();
+  assert.equal($(document, "tabs").querySelectorAll(".tab").length, 2);
+  assert.equal($(document, "views").querySelectorAll(".view").length, 2);
+  assert.equal($(document, "tabs").querySelectorAll(".tab.active").length, 1);
+});
+
+test("closing the last tab opens a fresh one instead of an empty window", async () => {
+  const { document } = await bootApp();
+  $(document, "new-tab").click();
+  $(document, "tabs").querySelector(".tab .tab-close").click();
+  $(document, "tabs").querySelector(".tab .tab-close").click();
+  assert.equal($(document, "tabs").querySelectorAll(".tab").length, 1);
+  assert.ok($(document, "views").querySelector(".ntp"));
+});
+
+test("the settings drawer opens, keeps its values and closes", async () => {
+  const { document } = await bootApp();
+  const drawer = $(document, "settings");
+
+  assert.equal(drawer.hidden, true);
+  $(document, "btn-settings").click();
+  assert.equal(drawer.hidden, false);
+
+  const search = $(document, "set-search");
+  assert.ok(search.options.length >= 8, "search engines populated");
+  assert.equal(search.value, "duckduckgo");
+
+  search.value = "google";
+  search.dispatchEvent(new document.defaultView.Event("change"));
+  assert.equal(JSON.parse(localStorage.getItem("relay.settings.v1")).search, "google");
+
+  $(document, "settings-close").click();
+  assert.equal(drawer.hidden, true);
+});
+
+test("Simple mode fetches, rewrites and renders a page", async () => {
+  const { document } = await bootApp();
+  // Pin Simple mode before navigating.
+  const mode = $(document, "set-mode");
+  mode.value = "simple";
+  mode.dispatchEvent(new document.defaultView.Event("change"));
+
+  const calls = stubFetch((url) =>
+    htmlResponse(
+      `<html><head><title>Example</title>
+       <meta http-equiv="Content-Security-Policy" content="default-src 'none'"></head>
+       <body><a href="/next">next</a><img src="pic.png"></body></html>`,
+    ),
+  );
+
+  const omnibox = $(document, "omnibox");
+  omnibox.value = "https://example.com/a/b";
+  omnibox.dispatchEvent(new document.defaultView.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+
+  // Let the navigation promise settle.
+  await new Promise((r) => setTimeout(r, 30));
+
+  assert.ok(calls.length >= 1, "a CORS mirror was called");
+  assert.match(calls[0].url, /example\.com/, "the destination rides in the mirror URL");
+
+  const iframe = $(document, "views").querySelector(".view.active iframe");
+  assert.ok(iframe, "a browsing iframe was created");
+  assert.equal(iframe.getAttribute("sandbox").includes("allow-scripts"), true, "Simple mode sandboxes the page");
+  assert.ok(!iframe.getAttribute("sandbox").includes("allow-same-origin"), "Simple mode must not share our origin");
+
+  const doc = iframe.getAttribute("srcdoc") || iframe.srcdoc || "";
+  assert.match(doc, /<base href="https:\/\/example\.com\/a\/b">/, "base tag injected");
+  assert.match(doc, /href="https:\/\/example\.com\/next"/, "links absolutised");
+  assert.match(doc, /src="https:\/\/example\.com\/a\/pic\.png"/, "images absolutised");
+  assert.doesNotMatch(doc, /content-security-policy/i, "CSP stripped");
+
+  assert.equal($(document, "reload")?.disabled ?? $(document, "nav-reload").disabled, false, "reload enabled");
+});
+
+test("Simple mode tries the next mirror when one fails", async () => {
+  const { document } = await bootApp();
+  const mode = $(document, "set-mode");
+  mode.value = "simple";
+  mode.dispatchEvent(new document.defaultView.Event("change"));
+
+  let attempt = 0;
+  const calls = stubFetch(() => {
+    attempt += 1;
+    if (attempt === 1) return htmlResponse("nope", { status: 500 });
+    return htmlResponse("<html><body>ok</body></html>");
+  });
+
+  const omnibox = $(document, "omnibox");
+  omnibox.value = "https://example.com/";
+  omnibox.dispatchEvent(new document.defaultView.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  await new Promise((r) => setTimeout(r, 30));
+
+  assert.equal(calls.length, 2, "fell through to a second mirror");
+  const iframe = $(document, "views").querySelector(".view.active iframe");
+  assert.match(iframe.getAttribute("srcdoc") || iframe.srcdoc || "", /ok/);
+});
+
+test("bookmarking adds the page to the new tab page", async () => {
+  const { document } = await bootApp();
+  const mode = $(document, "set-mode");
+  mode.value = "simple";
+  mode.dispatchEvent(new document.defaultView.Event("change"));
+  stubFetch(() => htmlResponse("<html><head><title>Bookmarked page</title></head><body>hi</body></html>"));
+
+  const omnibox = $(document, "omnibox");
+  omnibox.value = "https://example.com/page";
+  omnibox.dispatchEvent(new document.defaultView.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  await new Promise((r) => setTimeout(r, 30));
+
+  $(document, "btn-star").click();
+  const saved = JSON.parse(localStorage.getItem("relay.bookmarks.v1"));
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].url, "https://example.com/page");
+  assert.ok($(document, "btn-star").classList.contains("on"), "star lights up");
+
+  $(document, "nav-home").click();
+  const ntp = $(document, "views").querySelector(".ntp");
+  assert.ok(ntp, "home returns to the new tab page");
+  assert.match(ntp.textContent, /Bookmarks/, "bookmarks section appears");
+});
+
+test("the panic key hides the app and restores it", async () => {
+  const { document, window } = await bootApp();
+  const panic = $(document, "panic");
+  assert.equal(panic.hidden, true);
+
+  const press = () =>
+    document.dispatchEvent(new window.KeyboardEvent("keydown", { key: "`", bubbles: true }));
+
+  press();
+  assert.equal(panic.hidden, false, "panic screen shown");
+  press();
+  assert.equal(panic.hidden, true, "panic screen hidden again");
+});
+
+test("a search term is resolved through the configured engine", async () => {
+  const { document } = await bootApp();
+  const mode = $(document, "set-mode");
+  mode.value = "simple";
+  mode.dispatchEvent(new document.defaultView.Event("change"));
+
+  const calls = stubFetch(() => htmlResponse("<html><body>results</body></html>"));
+  const omnibox = $(document, "omnibox");
+  omnibox.value = "tallest trees";
+  omnibox.dispatchEvent(new document.defaultView.KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
+  await new Promise((r) => setTimeout(r, 30));
+
+  assert.ok(calls.length >= 1);
+  // The destination is percent-encoded into the mirror's `url` parameter,
+  // so decode twice to recover the real search URL.
+  const target = decodeURIComponent(decodeURIComponent(calls[0].url));
+  assert.match(target, /duckduckgo\.com\/\?q=tallest trees/);
 });
