@@ -34,8 +34,25 @@ function resolve(raw, base) {
 }
 
 function rewriteSrcset(value, base, proxify) {
-  return value
-    .split(",")
+  // Split into candidates without breaking data: URIs, which contain a
+  // comma of their own. A candidate is "<url> [<descriptor>]"; data URIs
+  // run until whitespace, so scan character by character.
+  const candidates = [];
+  let cur = "", i = 0;
+  const s = String(value);
+  while (i < s.length) {
+    if (s[i] === ",") {
+      // A comma ends the candidate UNLESS we're inside a data URI's
+      // parameter section (data:<mediatype>,<data>): the first comma of a
+      // candidate that starts with "data:" belongs to the URI.
+      const trimmed = cur.trim();
+      const inDataParams = /^data:[^,\s]*$/i.test(trimmed);
+      if (!inDataParams) { candidates.push(cur); cur = ""; i++; continue; }
+    }
+    cur += s[i++];
+  }
+  if (cur.trim()) candidates.push(cur);
+  return candidates
     .map((candidate) => {
       const parts = candidate.trim().split(/\s+/);
       if (!parts[0]) return candidate;
@@ -94,6 +111,8 @@ function rewriteTag(tag, base) {
 
       const kind = LINK_ATTRS.get(attr);
       if (!kind) return m;
+      // Script URLs in links would run in the Reader page's own context.
+      if (/^\s*(javascript|vbscript):/i.test(value)) return `${attrRaw}${eq}"#"`;
       const resolved = resolve(value, base);
       if (!resolved || resolved.startsWith("data:") || /^(mailto|tel|sms):/i.test(resolved)) return m;
       // <a href> navigates; <link href> is an asset; stylesheet etc.
@@ -150,7 +169,7 @@ export function rewriteHtml(html, pageUrl) {
   out = out.replace(
     /<meta[^>]+http-equiv\s*=\s*["']?refresh["']?[^>]*>/gi,
     (tag) => {
-      const m = tag.match(/content\s*=\s*["']\s*\d+\s*;\s*url=([^"']+)["']/i);
+      const m = tag.match(/content\s*=\s*["']\s*\d*\s*;?\s*url\s*=\s*([^"']+)["']/i);
       if (!m) return "";
       const resolved = resolve(m[1], base);
       return resolved ? `<meta http-equiv="refresh" content="0;url=${escapeAttr(READER(resolved))}">` : "";
@@ -160,8 +179,9 @@ export function rewriteHtml(html, pageUrl) {
   // <style> blocks.
   out = out.replace(/(<style\b[^>]*>)([\s\S]*?)(<\/style\s*>)/gi, (m, open, css, close) => open + rewriteCss(css, base) + close);
 
-  // All remaining tags' attributes.
-  out = out.replace(/<[a-zA-Z][^<>]*>/g, (tag) => rewriteTag(tag, base));
+  // All remaining tags' attributes. The pattern is quote-aware so a ">"
+  // inside an attribute value (e.g. title="a > b") doesn't end the tag early.
+  out = out.replace(/<[a-zA-Z](?:[^>"']|"[^"]*"|'[^']*')*>/g, (tag) => rewriteTag(tag, base));
 
   // Destination unwrapping for click-trackers (Bing/DuckDuckGo/Google).
   out = out.replace(/href="\/api\/fetch\?mode=reader&(?:amp;)?url=([^"]+)"/g, (m, enc) => {
@@ -172,10 +192,14 @@ export function rewriteHtml(html, pageUrl) {
       else if (u.hostname.endsWith("duckduckgo.com") && u.pathname.startsWith("/l/")) dest = u.searchParams.get("uddg");
       else if (u.hostname.endsWith("google.com") && u.pathname === "/url") dest = u.searchParams.get("q") || u.searchParams.get("url");
       if (dest) {
-        // Bing encodes as base64 with an "a1" prefix.
+        // Bing encodes as base64(url) with an "a1" prefix (url-safe, often unpadded).
         let d = dest;
-        if (/^a1[A-Za-z0-9+/=]+$/.test(d)) {
-          try { d = Buffer.from(d.slice(2), "base64").toString("utf8"); } catch { /* keep raw */ }
+        if (/^a1[A-Za-z0-9+/=_-]+$/.test(d)) {
+          try {
+            let b64 = d.slice(2).replaceAll("-", "+").replaceAll("_", "/");
+            while (b64.length % 4) b64 += "=";
+            d = Buffer.from(b64, "base64").toString("utf8");
+          } catch { /* keep raw */ }
         }
         const final = resolve(d, pageUrl);
         if (final) return `href="${escapeAttr(READER(final))}"`;

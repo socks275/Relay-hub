@@ -48,14 +48,22 @@ const SHAPES={
 };
 const KEYS=Object.keys(SHAPES);
 let board,bag,cur,next,held,canHold,score,lines,level,coins,dropAt,last,over,paused;
+let groundAt=null,lockResets=0; // lock-delay state
+const LOCK_MS=450,MAX_LOCK_RESETS=15;
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
 function refill(){bag=shuffle([...KEYS])}
 function take(){if(!bag.length)refill();return bag.pop()}
 function spawn(type){
   const m=SHAPES[type].m.map(r=>[...r]);
   const p={type,m,x:Math.floor((W-m[0].length)/2),y:type==="I"?-1:0};
+  groundAt=null;lockResets=0;
   if(collides(p,p.x,p.y)){over=true}
   return p;
+}
+function nudgeLock(){
+  // A successful move/rotate while grounded restarts the lock clock,
+  // a limited number of times (guideline behaviour).
+  if(groundAt!==null&&lockResets<MAX_LOCK_RESETS){groundAt=performance.now();lockResets++}
 }
 function collides(p,x,y){
   return p.m.some((row,dy)=>row.some((v,dx)=>{
@@ -90,15 +98,15 @@ function lock(){
 }
 function hardDrop(){while(!collides(cur,cur.x,cur.y+1)){cur.y++;score+=2}lock();update()}
 function softStep(){
-  if(!collides(cur,cur.x,cur.y+1)){cur.y++;score+=1}
-  else lock();
+  // Soft drop never force-locks; the lock timer in frame() handles it.
+  if(!collides(cur,cur.x,cur.y+1)){cur.y++;score+=1;groundAt=null;dropAt=performance.now()+interval()}
   update();
 }
 function rotate(){
   const m=cur.m,rot=m[0].map((_,i)=>m.map(r=>r[i]).reverse());
   const old=cur.m;cur.m=rot;
   for(const kick of [0,-1,1,-2,2]){
-    if(!collides(cur,cur.x+kick,cur.y)){cur.x+=kick;return}
+    if(!collides(cur,cur.x+kick,cur.y)){cur.x+=kick;nudgeLock();return}
   }
   cur.m=old;
 }
@@ -162,16 +170,20 @@ function reset(){
 const interval=()=>Math.max(60,650-(level-1)*55);
 function frame(now){
   requestAnimationFrame(frame);
-  if(over||paused){draw();last=now;return}
-  if(now>=dropAt){
-    if(!collides(cur,cur.x,cur.y+1))cur.y++;else lock();
-    dropAt=now+interval();
+  if(over||paused){draw();last=now;groundAt=null;return}
+  const grounded=collides(cur,cur.x,cur.y+1);
+  if(!grounded){
+    groundAt=null;lockResets=0;
+    if(now>=dropAt){cur.y++;dropAt=now+interval()}
+  }else{
+    if(groundAt===null)groundAt=now;
+    else if(now-groundAt>=LOCK_MS){lock();groundAt=null;lockResets=0;dropAt=now+interval()}
   }
   draw();
 }
 const ACTIONS={
-  left:()=>{if(!collides(cur,cur.x-1,cur.y))cur.x--},
-  right:()=>{if(!collides(cur,cur.x+1,cur.y))cur.x++},
+  left:()=>{if(!collides(cur,cur.x-1,cur.y)){cur.x--;nudgeLock()}},
+  right:()=>{if(!collides(cur,cur.x+1,cur.y)){cur.x++;nudgeLock()}},
   down:()=>softStep(),
   rot:()=>rotate(),
   drop:()=>hardDrop(),

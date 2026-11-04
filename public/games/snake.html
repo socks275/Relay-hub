@@ -35,7 +35,7 @@
 const cv=document.getElementById("cv"),ctx=cv.getContext("2d");
 const N=24,CELL=cv.width/N;
 const pineCoins=n=>{try{parent.postMessage({pineCoins:n},"*")}catch(e){}};
-let snake,dir,pending,food,golden,score,alive,timer,coinsPaid=0;
+let snake,dir,queue,food,golden,score,alive,timer,coinsPaid=0;
 let best=Number(localStorage.getItem("pine.snake.best")||0);
 document.getElementById("best").textContent=best;
 function placeFood(g){
@@ -46,14 +46,14 @@ function placeFood(g){
 }
 function reset(){
   snake=[{x:12,y:12},{x:11,y:12},{x:10,y:12}];
-  dir={x:1,y:0};pending=dir;score=0;alive=true;coinsPaid=0;
+  dir={x:1,y:0};queue=[];score=0;alive=true;coinsPaid=0;
   food=placeFood(false);golden=null;
   update();draw();loop();
 }
 function speedMs(){return 170-document.getElementById("speed").value*13}
 function loop(){clearTimeout(timer);if(!alive)return;timer=setTimeout(()=>{step();loop()},speedMs())}
 function step(){
-  dir=pending;
+  if(queue.length)dir=queue.shift();
   let head={x:snake[0].x+dir.x,y:snake[0].y+dir.y};
   const wrap=document.getElementById("wrap").checked;
   if(wrap){head.x=(head.x+N)%N;head.y=(head.y+N)%N}
@@ -98,8 +98,13 @@ function draw(){
 const DIRS={up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}};
 function setDir(name){
   const d=DIRS[name];if(!d)return;
-  if(d.x===-dir.x&&d.y===-dir.y)return;
-  pending=d;
+  // Validate against the last queued direction (or current heading), so a
+  // fast "up then left" turns the corner over two ticks instead of being
+  // swallowed — while a true 180° reversal stays impossible.
+  const last=queue.length?queue[queue.length-1]:dir;
+  if(d.x===-last.x&&d.y===-last.y)return;
+  if(d.x===last.x&&d.y===last.y)return;
+  if(queue.length<3)queue.push(d);
 }
 addEventListener("keydown",e=>{
   const map={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right"};

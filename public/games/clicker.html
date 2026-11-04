@@ -32,7 +32,8 @@
 </div>
 <h3 style="margin:1.2rem 0 .5rem">Upgrades</h3>
 <div class="shop" id="shop"></div>
-<p class="hint">Conversion: every <b>250</b> uncashed game coins = <b>1 real Pine coin</b> (max 50 per cash-out; daily games cap applies). Progress saves automatically.</p>
+<p class="hint" id="offline" hidden></p>
+<p class="hint">Conversion: every <b>250</b> uncashed game coins = <b>1 real Pine coin</b> (max 50 per cash-out; daily games cap applies). Progress saves automatically — and your grove keeps earning at half rate while you're away (up to 8 hours).</p>
 <script>
 "use strict";
 const pineCoins=n=>{try{parent.postMessage({pineCoins:n},"*")}catch(e){}};
@@ -54,6 +55,9 @@ function count(id){return S.owned[id]||0}
 function cost(item){return Math.floor(item.base*Math.pow(1.16,count(item.id)))}
 function perClick(){return 1+ITEMS.filter(i=>i.type==="click").reduce((a,i)=>a+i.amt*count(i.id),0)}
 function cps(){return ITEMS.filter(i=>i.type==="cps").reduce((a,i)=>a+i.amt*count(i.id),0)}
+// Offline earnings: half rate for the time away, capped at 8 hours.
+const offlineGain=(typeof S.t==="number")?Math.floor(Math.min(8*3600,Math.max(0,(Date.now()-S.t)/1000))*cps()*0.5):0;
+if(offlineGain>0){S.bank+=offlineGain;S.uncashed+=offlineGain}
 function fmt(n){
   if(n>=1e9)return(n/1e9).toFixed(2)+"B";
   if(n>=1e6)return(n/1e6).toFixed(2)+"M";
@@ -109,7 +113,8 @@ setInterval(()=>{
   if(gain>0){S.bank+=gain;S.uncashed+=gain;render()}
   if(++saveTick%40===0)save();
 },120);
-function save(){try{localStorage.setItem("pine.game.clicker",JSON.stringify(S))}catch(e){}}
+function save(){S.t=Date.now();try{localStorage.setItem("pine.game.clicker",JSON.stringify(S))}catch(e){}}
+setTimeout(()=>{if(offlineGain>0){const el=document.getElementById("offline");el.textContent=`🌲 While you were away, the grove earned ${fmt(offlineGain)} 🪙!`;el.hidden=false;render()}},50);
 addEventListener("beforeunload",save);
 render();
 </script>

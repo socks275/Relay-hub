@@ -62,9 +62,9 @@ let slowUntil=0;
 function applyPower(p){
   if(p.kind==="wide"){paddle.w=140;paddle.wideUntil=performance.now()+12000}
   if(p.kind==="slow"){slowUntil=performance.now()+7000;for(const b of balls){b.vx*=.62;b.vy*=.62}}
-  if(p.kind==="multi"){
+  if(p.kind==="multi"){ // capped at 6 so the field stays readable
     const extra=[];
-    for(const b of balls.slice(0,2)){const nb={...b,stuck:false};nb.vx=-b.vx||2;extra.push(nb)}
+    for(const b of balls.slice(0,2)){if(balls.length+extra.length>=6)break;const nb={...b,stuck:false};nb.vx=-b.vx||2;extra.push(nb)}
     balls.push(...extra);
   }
 }

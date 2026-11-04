@@ -32,7 +32,6 @@ function reset(){
 }
 function update(){
   document.getElementById("score").textContent=score;
-  document.getElementById("coins").textContent=paid + (medalPaid? "?":"");
   document.getElementById("coins").textContent=paid;
   document.getElementById("medal").textContent=medalFor(score);
 }

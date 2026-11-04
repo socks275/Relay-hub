@@ -41,7 +41,7 @@ window.addEventListener("pine:coins", (e) => {
   const { amount, reason } = e.detail;
   if (amount <= 0) return;
   coinSum += amount;
-  if (!coinToast) coinToast = toast("", "coin", 2200);
+  if (!coinToast || !coinToast.isConnected) coinToast = toast("", "coin", 2200);
   coinToast.textContent = `+${coinSum} 🪙${reason ? ` · ${reason}` : ""}`;
   clearTimeout(coinTimer);
   coinTimer = setTimeout(() => { coinToast = null; coinSum = 0; }, 2300);
@@ -121,8 +121,10 @@ document.addEventListener("click", (e) => {
 /* Omnibox with suggestions                                           */
 /* ------------------------------------------------------------------ */
 function attachOmnibox(form, input, box, onGo) {
-  let items = [], sel = -1, abort = null, debounce = null;
-  const close = () => { box.hidden = true; sel = -1; };
+  let items = [], sel = -1, abort = null, debounce = null, generation = 0;
+  // Bumping the generation invalidates any in-flight suggestion fetch, so a
+  // slow response can't reopen the dropdown after submit/pick/blur.
+  const close = () => { generation++; abort?.abort(); box.hidden = true; sel = -1; };
   const render = () => {
     if (!items.length) return close();
     box.innerHTML = items.map((it, i) =>
@@ -145,7 +147,9 @@ function attachOmnibox(form, input, box, onGo) {
     clearTimeout(debounce);
     const q = input.value.trim();
     if (!q) { items = []; return close(); }
+    const myGen = ++generation;
     debounce = setTimeout(async () => {
+      if (myGen !== generation) return;
       const local = [];
       const seen = new Set();
       for (const e of [...state.bookmarks, ...state.history]) {
@@ -166,7 +170,7 @@ function attachOmnibox(form, input, box, onGo) {
         abort = new AbortController();
         const res = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`, { signal: abort.signal });
         const data = await res.json();
-        if (input.value.trim() !== q) return;
+        if (myGen !== generation || input.value.trim() !== q) return;
         const remote = (data.suggestions || []).filter((s) => s.toLowerCase() !== q.toLowerCase())
           .map((s) => ({ label: s, kind: "search" }));
         items = [...local, ...(items.find((i) => i.kind === "visit") ? [items.find((i) => i.kind === "visit")] : []), ...remote].slice(0, 9);
@@ -284,6 +288,7 @@ async function navigateTab(tab, raw, { engine = tab.engine, fallbackOnce = true 
   if (!url) return;
   tab.engine = engine;
   tab.url = url;
+  tab.lastError = null;
   if (tab.title === "New tab" || !tab.title) tab.title = hostOf(url);
   addHistory(url, tab.title);
   earn(1, "browse");
@@ -317,6 +322,7 @@ async function navigateTab(tab, raw, { engine = tab.engine, fallbackOnce = true 
     if (!tab.frame) {
       tab.frame = proxy.createFrame(tab.iframe, {
         onUrl(u) {
+          if (u) tab.lastError = null; // page is alive — forget old errors
           if (!u || u === tab.url) return;
           tab.url = u;
           addHistory(u, tab.title);
@@ -334,7 +340,7 @@ async function navigateTab(tab, raw, { engine = tab.engine, fallbackOnce = true 
           updateHistoryTitle(u || tab.url, tab.title);
           renderTabs();
         },
-        onLoad() { setTabLoading(tab, false); },
+        onLoad() { tab.lastError = null; hideTabError(); setTabLoading(tab, false); },
         onError(err, rawReq) {
           const dest = rawReq?.destination;
           if (dest === "iframe" || dest === "document" || dest === "") {
@@ -364,12 +370,13 @@ function createTab({ url = "", engine = state.settings.engine, activate = true }
   iframe.addEventListener("load", () => {
     // The very first about:blank load of a fresh iframe isn't a real page.
     try { if (tab.url && iframe.contentWindow?.location.href === "about:blank") return; } catch { /* direct engine */ }
+    if (tab.url) { tab.lastError = null; if (tab.id === activeTabId) hideTabError(); }
     setTabLoading(tab, false);
   });
   $frames.insertBefore(iframe, $("#browse-empty"));
   tabs.push(tab);
   if (activate || !activeTabId) activateTab(tab.id);
-  else renderTabs();
+  else { iframe.classList.add("hidden-frame"); renderTabs(); }
   if (url) navigateTab(tab, url, { engine });
   return tab;
 }
@@ -435,10 +442,12 @@ $("#tab-add").addEventListener("click", () => { createTab({}); $("#addr-input").
 function tabHistory(dir) {
   const t = activeTab();
   if (!t) return;
+  // history.back/forward are allowed cross-origin, so this also covers the
+  // Direct engine. Never fall back to navigating the hub's own history.
   try {
     if (t.engine === "scramjet" && t.frame) dir < 0 ? t.frame.back() : t.frame.forward();
     else dir < 0 ? t.iframe.contentWindow.history.back() : t.iframe.contentWindow.history.forward();
-  } catch { /* cross-origin direct */ try { dir < 0 ? history.back() : history.forward(); } catch { /* noop */ } }
+  } catch { /* frame already gone */ }
 }
 $("#nav-back").addEventListener("click", () => tabHistory(-1));
 $("#nav-fwd").addEventListener("click", () => tabHistory(1));
@@ -614,6 +623,9 @@ function closeGame() {
 $("#game-fs").addEventListener("click", () => $("#game-frame").requestFullscreen?.().catch(() => {}));
 window.addEventListener("message", (e) => {
   if (e.origin !== location.origin || !e.data || typeof e.data !== "object") return;
+  // Only the actual game iframe may award coins — proxied pages are also
+  // same-origin (under /lessons/) and could otherwise farm by postMessage.
+  if (e.source !== $("#game-frame").contentWindow) return;
   if (typeof e.data.pineCoins === "number" && e.data.pineCoins > 0 && currentGame)
     earn(Math.min(50, Math.floor(e.data.pineCoins)), "games", currentGame.name);
   if (e.data.pineCloseGame) closeGame();
@@ -1204,7 +1216,10 @@ document.addEventListener("keydown", (e) => {
   const pk = state.settings.panicKey;
   // If Esc is the panic key, let it close dialogs/games first — panic on the *next* press.
   const escBusy = pk === "Escape" && (document.querySelector("#modal-back") || !$("#game-overlay").hidden);
-  if (pk && e.key === pk && !escBusy && !isEditing() && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); panic(); return; }
+  // Non-typing panic keys (Esc/F9) must work even mid-keystroke in an input —
+  // that's exactly when you'd need them. Printable keys respect text fields.
+  const panicWhileEditing = pk === "Escape" || pk === "F9";
+  if (pk && e.key === pk && !escBusy && (panicWhileEditing || !isEditing()) && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); panic(); return; }
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
     e.preventDefault();
     if (currentView === "browse") $("#addr-input").focus();
@@ -1214,6 +1229,7 @@ document.addEventListener("keydown", (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "l" && currentView === "browse") {
     e.preventDefault(); $("#addr-input").select(); return;
   }
+  if (e.altKey && isEditing()) return; // don't hijack Alt combos mid-typing (accents et al.)
   if (e.altKey && /^[1-8]$/.test(e.key)) { e.preventDefault(); showView(VIEW_ORDER[Number(e.key) - 1]); return; }
   if (e.altKey && e.key.toLowerCase() === "t") { e.preventDefault(); showView("browse"); createTab({}); $("#addr-input").focus(); return; }
   if (e.altKey && e.key.toLowerCase() === "w" && activeTabId) { e.preventDefault(); closeTab(activeTabId); return; }
@@ -1274,6 +1290,7 @@ if (!state.seenIntro) {
       <button class="btn btn-acc" id="intro-go">Start exploring 🌲</button>
     </div>
     <p class="fineprint" style="text-align:center">Tip: the panic key is <code>${esc(state.settings.panicKey)}</code> — it leaves instantly. Cloaks live in Settings.</p>`);
+  $("#intro-name", m).addEventListener("keydown", (e) => { if (e.key === "Enter") $("#intro-go", m).click(); });
   $("#intro-go", m).addEventListener("click", () => {
     const name = $("#intro-name", m).value.trim();
     if (name) { state.profile.name = name.slice(0, 24); }

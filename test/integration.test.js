@@ -25,6 +25,14 @@ const fixture = http.createServer((req, res) => {
     res.writeHead(200, { "content-type": "image/png" });
     return res.end(Buffer.from("89504e470d0a1a0a", "hex"));
   }
+  if (u.pathname === "/cookie.png") {
+    res.writeHead(200, {
+      "content-type": "image/png",
+      "set-cookie": "tracking=1; Path=/",
+      "www-authenticate": 'Basic realm="nope"',
+    });
+    return res.end(Buffer.from("89504e470d0a1a0a", "hex"));
+  }
   if (u.pathname === "/redir") {
     res.writeHead(302, { location: "/page" });
     return res.end();
@@ -118,6 +126,24 @@ test("games are served", async () => {
     assert.equal(r.status, 200, g);
     await r.text();
   }
+});
+
+test("malformed static paths get 400, never 500", async () => {
+  const raw = (path) => new Promise((resolve, reject) => {
+    http.get({ host: "127.0.0.1", port, path }, (r) => { r.resume(); r.on("end", () => resolve(r.statusCode)); }).on("error", reject);
+  });
+  assert.equal(await raw("/%E0%A4%A"), 400, "truncated UTF-8 escape");
+  assert.equal(await raw("/js/%00.js"), 400, "NUL byte");
+  assert.equal(await raw("/css/app.css"), 200, "server still healthy afterwards");
+});
+
+test("reader assets never leak upstream cookies or auth challenges", async () => {
+  const res = await fetch(`${base(port)}/api/fetch?mode=asset&url=${encodeURIComponent(fixtureUrl("/cookie.png"))}`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("set-cookie"), null);
+  assert.deepEqual(res.headers.getSetCookie(), []);
+  assert.equal(res.headers.get("www-authenticate"), null);
+  await res.arrayBuffer();
 });
 
 /* ---------------- reader engine ---------------- */

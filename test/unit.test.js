@@ -94,6 +94,39 @@ test("rewriteCss rewrites url() and @import", () => {
   assert.ok(out.includes(encodeURIComponent("https://ex.com/img.png")));
 });
 
+test("rewriteHtml survives '>' inside attribute values", () => {
+  const out = rewriteHtml(`<body><a title="a > b" href="/deep">x</a><img alt="2 > 1" src="p.png"></body>`, BASE);
+  assert.ok(out.includes(encodeURIComponent("https://example.com/deep")), "href after quoted > still rewritten");
+  assert.ok(out.includes(encodeURIComponent("https://example.com/dir/p.png")), "src after quoted > still rewritten");
+  assert.ok(out.includes('title="a > b"'), "quoted attribute left intact");
+});
+
+test("rewriteHtml preserves data: URIs in srcset and proxifies the rest", () => {
+  const dataUri = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUg==";
+  const out = rewriteHtml(`<body><img srcset="${dataUri} 1x, real.png 2x"></body>`, BASE);
+  assert.ok(out.includes(dataUri), "data URI (with its comma) untouched");
+  assert.ok(out.includes(encodeURIComponent("https://example.com/dir/real.png")), "sibling candidate proxied");
+});
+
+test("rewriteHtml neutralises javascript:/vbscript: links", () => {
+  const out = rewriteHtml(`<body><a href="JaVaScRiPt:alert(1)">a</a><a href=" vbscript:msgbox(1)">b</a></body>`, BASE);
+  assert.ok(!/javascript:/i.test(out) && !/vbscript:/i.test(out), "no script schemes survive");
+  assert.ok(out.includes('href="#"'), "replaced with inert fragment");
+});
+
+test("rewriteHtml handles meta refresh without a delay number", () => {
+  const out = rewriteHtml(`<head><meta http-equiv="refresh" content="url=https://example.com/land"></head>`, BASE);
+  assert.ok(out.includes(encodeURIComponent("https://example.com/land")), "delayless refresh stays in reader");
+});
+
+test("rewriteHtml unwraps Bing /ck/ with URL-safe unpadded base64", () => {
+  const dest = "https://dest.example/landing?from=bing&x=1";
+  const b64 = Buffer.from(dest).toString("base64url"); // url-safe alphabet, no padding
+  const out = rewriteHtml(`<body><a href="https://www.bing.com/ck/a?u=a1${b64}&ntb=1">r</a></body>`, BASE);
+  assert.ok(out.includes(encodeURIComponent(dest)), "bing destination decoded");
+  assert.ok(!out.includes("bing.com"), "tracker URL gone");
+});
+
 /* ---------------- AI maths ---------------- */
 
 test("evaluateMath parses arithmetic, powers, functions, factorials", () => {
@@ -121,6 +154,20 @@ test("convertUnits handles length, mass, temperature, time", () => {
   assert.match(convertUnits("10 kg to lbs").text, /22\.046/);
   assert.equal(convertUnits("5 parsecs to bananas"), null);
   assert.equal(formatNumber(1234567), "1,234,567");
+});
+
+/* ---------------- built-in games ---------------- */
+
+test("every built-in game's inline script compiles", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const { Script } = await import("node:vm");
+  for (const g of ["snake", "2048", "blocks", "breakout", "flappy", "memory", "mines", "clicker"]) {
+    const html = await readFile(new URL(`../public/games/${g}.html`, import.meta.url), "utf8");
+    const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+    assert.ok(scripts.length >= 1, `${g} has an inline script`);
+    for (const code of scripts) new Script(code, { filename: `${g}.html` }); // throws on syntax error
+    assert.match(html, /pineCoins|postMessage/, `${g} pays out coins`);
+  }
 });
 
 /* ---------------- URL normalisation (client proxy utils) ---------------- */

@@ -13,6 +13,15 @@ import { rewriteHtml, rewriteCss, readerErrorPage } from "./rewrite.js";
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
 
+// Keep-alive agents: a reader page pulls dozens of assets from one host,
+// and a fresh TCP+TLS handshake per asset dominates load time. Connections
+// are only pooled after the validating lookup has approved the address,
+// and pooled sockets are bound to that already-validated peer.
+const AGENTS = {
+  "http:": new http.Agent({ keepAlive: true, maxSockets: 32, maxFreeSockets: 16, timeout: 20000 }),
+  "https:": new https.Agent({ keepAlive: true, maxSockets: 32, maxFreeSockets: 16, timeout: 20000 }),
+};
+
 const HOP_HEADERS = new Set([
   "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
   "te", "trailer", "transfer-encoding", "upgrade", "host", "content-length",
@@ -28,6 +37,7 @@ function upstreamRequest(url, { method, headers, body, lookup, timeout }) {
         headers,
         lookup,
         timeout,
+        agent: AGENTS[url.protocol],
         maxHeaderSize: 64 * 1024,
         // A readable SNI host is preserved automatically from the URL.
       },
@@ -103,7 +113,7 @@ function decodeBody(buf, contentTypeHeader) {
   return buf.toString("latin1");
 }
 
-function requestBody(req, cap = 1024 * 1024) {
+function requestBody(req, cap = 8 * 1024 * 1024) {
   return new Promise((resolve, reject) => {
     const chunks = [];
     let total = 0;
@@ -131,14 +141,23 @@ export async function handleFetch(req, res, cfg) {
   try {
     target = validateTarget(rawTarget, { allowPrivate: cfg.allowPrivate });
     // Refuse to fetch ourselves (prevents silly loops via public hostname).
-    if (!cfg.allowPrivate && req.headers.host && target.host === req.headers.host)
+    // Compare hostnames only — Host headers may carry a port, URLs may not.
+    const ownHost = String(req.headers.host || "").replace(/:\d+$/, "").toLowerCase();
+    if (!cfg.allowPrivate && ownHost && target.hostname.toLowerCase() === ownHost)
       throw new TargetError("Refusing to proxy the proxy.", 403);
   } catch (err) {
     return sendReaderError(res, err, rawTarget);
   }
 
   const lookup = makeLookup({ allowPrivate: cfg.allowPrivate });
-  const body = req.method === "POST" || req.method === "PUT" ? await requestBody(req).catch(() => null) : null;
+  let body = null;
+  if (req.method === "POST" || req.method === "PUT") {
+    try {
+      body = await requestBody(req);
+    } catch (err) {
+      return sendReaderError(res, err, rawTarget);
+    }
+  }
 
   let current = target;
   let method = req.method === "POST" ? "POST" : "GET";
@@ -220,6 +239,9 @@ function streamThrough(req, res, up, cfg) {
     const key = k.toLowerCase();
     if (HOP_HEADERS.has(key)) continue;
     if (key === "content-security-policy" || key === "x-frame-options") continue; // assets must load in reader
+    // Reader is stateless/anonymous: upstream cookies must not be planted
+    // on the Pine origin, and a 401 must not popup a native auth dialog.
+    if (key === "set-cookie" || key === "www-authenticate") continue;
     headers[key] = v;
   }
   // Missing content-length with keep-alive upstreams: just close-delimit.

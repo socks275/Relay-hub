@@ -269,7 +269,9 @@ code { background: var(--panel-2); padding: 0.08em 0.4em; border-radius: 6px; fo
 .home-foot { margin-top: 1.4rem; color: var(--tx-3); font-size: 0.8rem; }
 
 /* ---------- browser ---------- */
-.view-browse { height: calc(100dvh - var(--topbar-h) - 2.2rem); }
+.view-browse { height: calc(100dvh - var(--topbar-h) - 2.4rem); }
+/* Don't let #main's roomy bottom padding push the browser into a scroll. */
+#main:has(> .view-browse.active) { padding-bottom: 1rem; }
 .browser { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; background: var(--panel-solid); }
 .browser:fullscreen { border-radius: 0; border: 0; }
 .tabstrip-row { display: flex; align-items: center; gap: 0.3rem; padding: 0.45rem 0.55rem 0; border-bottom: 1px solid var(--line); }

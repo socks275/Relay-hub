@@ -119,6 +119,8 @@ export function createPineServer(overrides = {}) {
       fails.push(now);
       authFailures.set(ip, fails);
       if (authFailures.size > 5000) authFailures = new Map();
+    } else {
+      authFailures.delete(ip); // a good login clears the slate
     }
     return ok;
   }
@@ -172,6 +174,8 @@ export function createPineServer(overrides = {}) {
       }
       return json(200, egressCache.value);
     }
+    if ((pathname === "/api/suggest" || pathname === "/api/answer") && rateLimited(clientIp(req)))
+      return json(429, { error: "rate-limited" });
     if (pathname === "/api/suggest") {
       const q = (query.get("q") || "").slice(0, 120);
       if (!q) return json(200, { suggestions: [] });

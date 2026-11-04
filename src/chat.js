@@ -35,6 +35,7 @@ export function createChat() {
 
   for (const name of DEFAULT_ROOMS) rooms.set(name, { members: new Set(), history: [] });
 
+  const MAX_ROOMS = 200;
   const roomOf = (name) => {
     if (!rooms.has(name)) rooms.set(name, { members: new Set(), history: [] });
     return rooms.get(name);
@@ -86,7 +87,10 @@ export function createChat() {
       if (!msg || typeof msg !== "object") return;
 
       if (msg.t === "join") {
-        const roomName = cleanRoom(msg.room);
+        let roomName = cleanRoom(msg.room);
+        // Cap room creation so a script can't grow the map forever; joins
+        // to brand-new rooms beyond the cap land in the lobby instead.
+        if (!rooms.has(roomName) && rooms.size >= MAX_ROOMS) roomName = "lobby";
         ws.pineName = cleanName(msg.name);
         ws.pineColor = cleanColor(msg.color);
         ws.pineBadge = cleanBadge(msg.badge);
@@ -174,6 +178,11 @@ export function createChat() {
 
   return {
     handleUpgrade(req, socket, head) {
+      if (wss.clients.size >= 500) {
+        socket.write("HTTP/1.1 503 Service Unavailable\r\n\r\n");
+        socket.destroy();
+        return;
+      }
       wss.handleUpgrade(req, socket, head, (ws) => wss.emit("connection", ws, req));
     },
     stats() {

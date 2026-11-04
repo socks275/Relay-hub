@@ -43,6 +43,7 @@ export const APPS = [
   A("Duck.ai", "https://duck.ai", "AI", "Private AI chat, no account"),
   A("Google Gemini", "https://gemini.google.com", "AI", "Google's assistant"),
   A("Perplexity", "https://www.perplexity.ai", "AI", "Answer engine with sources"),
+  A("Google", "https://www.google.com", "Tools", "Search the web"),
   A("GeForce NOW", "https://play.geforcenow.com", "Games", "Cloud gaming"),
   A("Xbox Cloud", "https://www.xbox.com/play", "Games", "Game Pass in the browser"),
   A("now.gg", "https://now.gg", "Games", "Mobile games in the browser"),

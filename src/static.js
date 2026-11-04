@@ -143,7 +143,19 @@ export function createStatic({ mounts, fileMounts }) {
 
     for (const mount of mounts) {
       if (!pathname.startsWith(mount.prefix)) continue;
-      const rel = decodeURIComponent(pathname.slice(mount.prefix.length));
+      let rel;
+      try {
+        rel = decodeURIComponent(pathname.slice(mount.prefix.length));
+      } catch {
+        res.writeHead(400, { "content-type": "text/plain" });
+        res.end("Bad request");
+        return true;
+      }
+      if (rel.includes("\0")) {
+        res.writeHead(400, { "content-type": "text/plain" });
+        res.end("Bad request");
+        return true;
+      }
       if (mount.filesOnly && !mount.filesOnly.has(rel)) continue;
       // Refuse sourcemaps + type defs from node_modules mounts; keeps things lean.
       if (rel.endsWith(".map") || rel.includes("types/") || rel.includes("temp-types")) continue;

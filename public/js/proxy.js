@@ -246,15 +246,28 @@ class ProxyEngine {
           this.tap(frame.hooks.init.post, (ctx) => {
             if (!ctx.isTopLevel) return;
             const w = ctx.window;
+            let lastTitle = null;
             const report = () => {
-              try { cb.onTitle?.(w.document.title || "", ctx.client?.url?.href || ""); } catch { /* frame gone */ }
+              try {
+                const t = w.document.title || "";
+                if (t !== lastTitle) {
+                  lastTitle = t;
+                  cb.onTitle?.(t, ctx.client?.url?.href || "");
+                }
+              } catch { /* frame gone */ }
             };
             report();
-            try {
-              new w.MutationObserver(report).observe(w.document.documentElement, {
-                childList: true, subtree: true, characterData: true,
-              });
-            } catch { /* titles just won't live-update */ }
+            // Change-only polling beats a MutationObserver over the whole
+            // document (which fires constantly on ad/analytics-heavy sites).
+            // One live interval per tab (plugin instances are per-frame);
+            // it also self-clears once the frame's window is gone.
+            clearInterval(this._titlePoll);
+            const poll = (this._titlePoll = setInterval(() => {
+              try {
+                if (w.closed || !w.document) { clearInterval(poll); return; }
+              } catch { clearInterval(poll); return; }
+              report();
+            }, 1200));
             try { w.addEventListener("load", () => { report(); cb.onLoad?.(); }); } catch { /* ignore */ }
             try { w.addEventListener("DOMContentLoaded", report); } catch { /* ignore */ }
           });

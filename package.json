@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "PINE_LOG_LEVEL=debug node --watch server.js",
-    "test": "node --test test/unit.test.js test/integration.test.js",
+    "test": "node --test test/unit.test.js test/integration.test.js test/smoke.test.js",
     "check": "node --check server.js && npm test"
   },
   "engines": {
@@ -31,5 +31,9 @@
     "@mercuryworkshop/scramjet-utils": "0.0.3",
     "@mercuryworkshop/wisp-js": "0.5.2",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "jsdom": "^30.1.3"
   }
 }
