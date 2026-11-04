@@ -1,26 +1,23 @@
-# syntax=docker/dockerfile:1
+# Pine — single-container deployment.
 FROM node:22-alpine
 
-ENV NODE_ENV=production \
-    PORT=3000 \
-    HOST=0.0.0.0 \
-    RELAY_LOG_LEVEL=info
-
 WORKDIR /app
+ENV NODE_ENV=production
 
-# No dependencies to install — copy the app and run it.
-COPY package.json ./
+# Dependencies first for layer caching. The proxy bundles are served from
+# node_modules at runtime, so production deps must be installed in full.
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
+
 COPY server.js ./
 COPY src ./src
 COPY public ./public
 
-# Run unprivileged. The node image already ships a `node` user.
 USER node
-
 EXPOSE 3000
+ENV PORT=3000 HOST=0.0.0.0
 
-# Container-level healthcheck so orchestrators can restart a wedged instance.
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://127.0.0.1:'+(process.env.PORT||3000)+'/healthz',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+HEALTHCHECK --interval=30s --timeout=4s --start-period=8s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/healthz || exit 1
 
 CMD ["node", "server.js"]

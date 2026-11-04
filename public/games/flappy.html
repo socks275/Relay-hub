@@ -1,0 +1,129 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Flappy Pine</title>
+<style>
+  body{margin:0;background:#0a140d;color:#eaf5ee;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:1rem;box-sizing:border-box}
+  h1{font-family:Georgia,serif;font-style:italic;margin:.2rem 0}
+  .bar{display:flex;gap:.6rem;align-items:center;margin:.5rem 0}
+  .pill{background:#122419;border:1px solid #24402e;border-radius:999px;padding:.35rem .8rem;font-size:.85rem;font-weight:650}
+  canvas{border:1px solid #24402e;border-radius:14px;max-width:92vw;height:auto;touch-action:none;cursor:pointer}
+  .hint{color:#73907e;font-size:.8rem}
+</style>
+<h1>🐤 flappy pine</h1>
+<div class="bar">
+  <span class="pill">Score <b id="score">0</b></span>
+  <span class="pill">Best <b id="best">0</b></span>
+  <span class="pill">🪙 <b id="coins">0</b></span>
+  <span class="pill" id="medal"></span>
+</div>
+<canvas id="cv" width="420" height="560"></canvas>
+<p class="hint">Click, tap or Space to flap. Thread the pines. 1 🪙 per 5 trees; medals at 10 🥉 25 🥈 40 🥇 60 💎 (bonus coins on first medal of a run).</p>
+<script>
+"use strict";
+const cv=document.getElementById("cv"),ctx=cv.getContext("2d");
+const pineCoins=n=>{try{parent.postMessage({pineCoins:n},"*")}catch(e){}};
+let bird,pipes,score,state,paid,medalPaid,frame;
+let best=Number(localStorage.getItem("pine.flappy.best")||0);
+document.getElementById("best").textContent=best;
+function medalFor(s){return s>=60?"💎 diamond":s>=40?"🥇 gold":s>=25?"🥈 silver":s>=10?"🥉 bronze":""}
+function reset(){
+  bird={x:96,y:280,vy:0,r:15};
+  pipes=[];score=0;state="ready";paid=0;medalPaid="";frame=0;
+  update();
+}
+function update(){
+  document.getElementById("score").textContent=score;
+  document.getElementById("coins").textContent=paid + (medalPaid? "?":"");
+  document.getElementById("coins").textContent=paid;
+  document.getElementById("medal").textContent=medalFor(score);
+}
+function flap(){
+  if(state==="ready")state="play";
+  if(state==="over"){reset();return}
+  bird.vy=-7.6;
+}
+function step(){
+  frame++;
+  if(state==="play"){
+    bird.vy+=0.42;bird.y+=bird.vy;
+    if(frame%86===0){
+      const gap=138;
+      const top=60+Math.random()*(560-gap-150);
+      pipes.push({x:420,top,gap,passed:false});
+    }
+    for(const p of pipes){
+      p.x-=2.7;
+      if(!p.passed&&p.x+62<bird.x-bird.r){
+        p.passed=true;score++;
+        if(score%5===0){paid+=1;pineCoins(1)}
+        const m=medalFor(score);
+        if(m&&m!==medalPaid){medalPaid=m;const bonus=score>=60?15:score>=40?8:score>=25?5:2;paid+=bonus;pineCoins(bonus)}
+        update();
+      }
+      // collision
+      if(bird.x+bird.r-3>p.x&&bird.x-bird.r+3<p.x+62&&(bird.y-bird.r+3<p.top||bird.y+bird.r-3>p.top+p.gap))die();
+    }
+    pipes=pipes.filter(p=>p.x>-70);
+    if(bird.y+bird.r>560||bird.y-bird.r<0)die();
+  } else if(state==="ready"){
+    bird.y=280+Math.sin(frame/16)*7;
+  }
+}
+function die(){
+  if(state==="over")return;
+  state="over";
+  if(score>best){best=score;localStorage.setItem("pine.flappy.best",best);document.getElementById("best").textContent=best}
+}
+function tree(x,yTop,height,flip){
+  // a pipe drawn as a pine trunk with foliage edge
+  ctx.fillStyle="#1d4429";ctx.fillRect(x,yTop,62,height);
+  ctx.fillStyle="#26603a";ctx.fillRect(x+4,yTop,54,height);
+  const edgeY=flip?yTop:yTop+height-16;
+  ctx.fillStyle="#35d07f";
+  for(let i=0;i<5;i++){
+    ctx.beginPath();
+    const cx=x+7+i*13;
+    if(flip){ctx.moveTo(cx,edgeY);ctx.lineTo(cx+6,edgeY-13);ctx.lineTo(cx+12,edgeY)}
+    else{ctx.moveTo(cx,edgeY+16);ctx.lineTo(cx+6,edgeY+29);ctx.lineTo(cx+12,edgeY+16)}
+    ctx.fill();
+  }
+}
+function draw(){
+  const g=ctx.createLinearGradient(0,0,0,560);
+  g.addColorStop(0,"#0e2a1a");g.addColorStop(.7,"#0a1c11");g.addColorStop(1,"#07130b");
+  ctx.fillStyle=g;ctx.fillRect(0,0,420,560);
+  // distant hill pines
+  ctx.fillStyle="rgba(53,208,127,.1)";
+  for(let i=0;i<9;i++){
+    const x=((i*61-frame*.6)%500+500)%500-40,h=34+(i%3)*13;
+    ctx.beginPath();ctx.moveTo(x,560);ctx.lineTo(x+13,560-h);ctx.lineTo(x+26,560);ctx.fill();
+  }
+  // stars
+  ctx.fillStyle="rgba(255,255,255,.5)";
+  for(let i=0;i<28;i++){const x=(i*97)%420,y=(i*53)%300;ctx.fillRect(x,y,1.6,1.6)}
+  for(const p of pipes){
+    tree(p.x,0,p.top,false);
+    tree(p.x,p.top+p.gap,560-(p.top+p.gap),true);
+  }
+  // bird
+  ctx.save();ctx.translate(bird.x,bird.y);
+  ctx.rotate(Math.max(-.4,Math.min(.9,bird.vy*.06)));
+  ctx.font="28px system-ui";ctx.textAlign="center";ctx.textBaseline="middle";
+  ctx.fillText("🐤",0,1);
+  ctx.restore();
+  ctx.textAlign="center";
+  if(state==="ready"){ctx.fillStyle="#eaf5ee";ctx.font="italic 700 25px Georgia";ctx.fillText("tap to flap",210,180)}
+  if(state==="over"){
+    ctx.fillStyle="rgba(4,12,7,.78)";ctx.fillRect(0,0,420,560);
+    ctx.fillStyle="#eaf5ee";ctx.font="italic 700 32px Georgia";ctx.fillText("crashed!",210,240);
+    ctx.font="16px system-ui";ctx.fillStyle="#a9c2b1";
+    ctx.fillText(`score ${score} · best ${best}${medalFor(score)?" · "+medalFor(score):""}`,210,272);
+    ctx.fillText("tap to try again",210,298);
+  }
+  if(state==="play"){ctx.fillStyle="#eaf5ee";ctx.font="800 34px system-ui";ctx.fillText(score,210,52)}
+}
+function loop(){step();draw();requestAnimationFrame(loop)}
+addEventListener("keydown",e=>{if(e.key===" "||e.key==="ArrowUp"){flap();e.preventDefault()}});
+cv.addEventListener("mousedown",flap);
+cv.addEventListener("touchstart",e=>{flap();e.preventDefault()},{passive:false});
+reset();loop();
+</script>

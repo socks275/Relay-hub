@@ -1,0 +1,115 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Coin Clicker — Pine</title>
+<style>
+  body{margin:0;background:#0a140d;color:#eaf5ee;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:1rem;box-sizing:border-box}
+  h1{font-family:Georgia,serif;font-style:italic;margin:.2rem 0}
+  .bank{font-size:2rem;font-weight:800}
+  .sub{color:#a9c2b1}
+  #coin{font-size:7.5rem;line-height:1;background:none;border:0;cursor:pointer;transition:transform .07s;margin:.6rem 0;filter:drop-shadow(0 12px 24px rgba(245,196,81,.35))}
+  #coin:active{transform:scale(.92)}
+  .shop{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:.6rem;width:min(760px,94vw)}
+  .item{text-align:left;background:#122419;border:1px solid #24402e;color:#eaf5ee;border-radius:14px;padding:.8rem .9rem;cursor:pointer}
+  .item:hover:not(:disabled){background:#1a3322}
+  .item:disabled{opacity:.45;cursor:default}
+  .item b{display:block;font-size:1rem}
+  .item span{color:#a9c2b1;font-size:.8rem;display:block;margin-top:.15rem}
+  .item .cost{color:#f5c451;font-weight:700}
+  .row{display:flex;gap:.6rem;flex-wrap:wrap;justify-content:center;margin-top:1rem}
+  .pill{background:#122419;border:1px solid #24402e;border-radius:999px;padding:.4rem .85rem;font-weight:650;font-size:.88rem}
+  .acc{background:#35d07f;color:#06240f;border:0;border-radius:12px;padding:.65rem 1.1rem;font-weight:750;cursor:pointer}
+  .acc:disabled{opacity:.4;cursor:default}
+  .float{position:fixed;font-weight:800;color:#f5c451;pointer-events:none;animation:up .8s ease-out forwards;font-size:1.05rem}
+  @keyframes up{to{transform:translateY(-64px);opacity:0}}
+  .hint{color:#73907e;font-size:.8rem;text-align:center;max-width:620px}
+</style>
+<h1>🪙 coin clicker</h1>
+<div class="bank" id="bank">0</div>
+<div class="sub"><span id="cps">0</span> per second · click = <span id="perclick">1</span></div>
+<button id="coin" aria-label="Click for coins">🪙</button>
+<div class="row">
+  <span class="pill">Uncashed earnings: <b id="uncashed">0</b> → <b id="realpreview">0</b> real 🪙</span>
+  <button class="acc" id="cash">Cash out to Pine 🪙</button>
+</div>
+<h3 style="margin:1.2rem 0 .5rem">Upgrades</h3>
+<div class="shop" id="shop"></div>
+<p class="hint">Conversion: every <b>250</b> uncashed game coins = <b>1 real Pine coin</b> (max 50 per cash-out; daily games cap applies). Progress saves automatically.</p>
+<script>
+"use strict";
+const pineCoins=n=>{try{parent.postMessage({pineCoins:n},"*")}catch(e){}};
+const $=id=>document.getElementById(id);
+const ITEMS=[
+  {id:"glove",name:"🧤 Gardening Gloves",desc:"+1 per click",base:50,type:"click",amt:1},
+  {id:"sapling",name:"🌱 Sapling",desc:"+1 / sec",base:40,type:"cps",amt:1},
+  {id:"squirrel",name:"🐿️ Squirrel Team",desc:"+6 / sec",base:260,type:"cps",amt:6},
+  {id:"grove",name:"🌲 Pine Grove",desc:"+25 / sec",base:1400,type:"cps",amt:25},
+  {id:"sawmill",name:"🪵 Friendly Sawmill",desc:"+90 / sec",base:7000,type:"cps",amt:90},
+  {id:"goldglove",name:"✨ Golden Gloves",desc:"+15 per click",base:12000,type:"click",amt:15},
+  {id:"forest",name:"🌳 Ancient Forest",desc:"+400 / sec",base:45000,type:"cps",amt:400},
+  {id:"rangers",name:"🧑‍🌾 Ranger Corps",desc:"+1,800 / sec",base:220000,type:"cps",amt:1800}
+];
+let S;
+try{S=JSON.parse(localStorage.getItem("pine.game.clicker")||"null")}catch(e){S=null}
+if(!S||typeof S.bank!=="number")S={bank:0,uncashed:0,owned:{},clicks:0};
+function count(id){return S.owned[id]||0}
+function cost(item){return Math.floor(item.base*Math.pow(1.16,count(item.id)))}
+function perClick(){return 1+ITEMS.filter(i=>i.type==="click").reduce((a,i)=>a+i.amt*count(i.id),0)}
+function cps(){return ITEMS.filter(i=>i.type==="cps").reduce((a,i)=>a+i.amt*count(i.id),0)}
+function fmt(n){
+  if(n>=1e9)return(n/1e9).toFixed(2)+"B";
+  if(n>=1e6)return(n/1e6).toFixed(2)+"M";
+  if(n>=1e5)return Math.round(n/1e3)+"K";
+  return Math.floor(n).toLocaleString();
+}
+function render(){
+  $("bank").textContent=fmt(S.bank)+" 🪙";
+  $("cps").textContent=fmt(cps());
+  $("perclick").textContent=fmt(perClick());
+  $("uncashed").textContent=fmt(S.uncashed);
+  const real=Math.min(50,Math.floor(S.uncashed/250));
+  $("realpreview").textContent=real;
+  $("cash").disabled=real<=0;
+  document.querySelectorAll("[data-buy]").forEach(b=>{
+    const item=ITEMS.find(i=>i.id===b.dataset.buy);
+    b.disabled=S.bank<cost(item);
+    b.querySelector(".cost").textContent=fmt(cost(item))+" 🪙";
+    b.querySelector(".have").textContent=count(item.id)?`· own ${count(item.id)}`:"";
+  });
+}
+const shop=$("shop");
+shop.innerHTML=ITEMS.map(i=>`<button class="item" data-buy="${i.id}"><b>${i.name} <span class="have"></span></b><span>${i.desc}</span><span class="cost"></span></button>`).join("");
+shop.addEventListener("click",e=>{
+  const b=e.target.closest("[data-buy]");if(!b||b.disabled)return;
+  const item=ITEMS.find(i=>i.id===b.dataset.buy);
+  const c=cost(item);
+  if(S.bank<c)return;
+  S.bank-=c;S.uncashed=Math.max(0,S.uncashed-c);
+  S.owned[item.id]=count(item.id)+1;
+  save();render();
+});
+$("coin").addEventListener("click",e=>{
+  const v=perClick();
+  S.bank+=v;S.uncashed+=v;S.clicks++;
+  const f=document.createElement("span");
+  f.className="float";f.textContent="+"+fmt(v);
+  f.style.left=(e.clientX-8+Math.random()*20)+"px";f.style.top=(e.clientY-14)+"px";
+  document.body.appendChild(f);setTimeout(()=>f.remove(),820);
+  render();
+});
+$("cash").addEventListener("click",()=>{
+  const real=Math.min(50,Math.floor(S.uncashed/250));
+  if(real<=0)return;
+  S.uncashed-=real*250;
+  pineCoins(real);
+  save();render();
+});
+let lastT=Date.now(),saveTick=0;
+setInterval(()=>{
+  const now=Date.now(),dt=(now-lastT)/1000;lastT=now;
+  const gain=cps()*dt;
+  if(gain>0){S.bank+=gain;S.uncashed+=gain;render()}
+  if(++saveTick%40===0)save();
+},120);
+function save(){try{localStorage.setItem("pine.game.clicker",JSON.stringify(S))}catch(e){}}
+addEventListener("beforeunload",save);
+render();
+</script>

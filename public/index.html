@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="en" data-theme="pine">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Student Practice Center | Math, Language Arts, Science, Social Studies, and Spanish</title>
+<meta name="description" content="Free standards-aligned practice for kindergarten through grade 12: mathematics, English language arts, science, social studies and world languages, with diagnostics, spaced review and progress reports.">
+<meta name="theme-color" content="#0c1a12">
+<link id="favicon" rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<!-- icon sprite -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-pine" viewBox="0 0 64 64"><path d="M32 4 L47 26 H40 L51 41 H37 V54 H27 V41 H13 L24 26 H17 Z" fill="currentColor"/><circle cx="32" cy="20" r="3.2" fill="#f5c451"/></symbol>
+    <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M9.5 21v-6h5v6"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6.5" width="19" height="12" rx="6"/><path d="M7.5 10v4M5.5 12h4"/><circle cx="15.8" cy="10.6" r=".6" fill="currentColor"/><circle cx="18" cy="13.2" r=".6" fill="currentColor"/></symbol>
+    <symbol id="i-apps" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><rect x="13.5" y="13.5" width="7" height="7" rx="2"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H4l2-3.2A8 8 0 1 1 21 12Z"/><path d="M8.5 11h.01M12 11h.01M15.5 11h.01" stroke-width="2.6"/></symbol>
+    <symbol id="i-ai" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3l1.8 4.9L19 9.5l-5.2 1.6L12 16l-1.8-4.9L5 9.5l5.2-1.6Z"/><path d="M19 15l.9 2.4L22 18l-2.1.8L19 21l-.9-2.2L16 18l2.1-.6Z" stroke-width="1.6"/></symbol>
+    <symbol id="i-listen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2.5V16"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></symbol>
+    <symbol id="i-watch" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="3.5"/><path d="M10 9.2v5.6L15 12Z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-browse" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.4 2.5 3.6 5.6 3.6 9S14.4 18.5 12 21c-2.4-2.5-3.6-5.6-3.6-9S9.6 5.5 12 3Z"/></symbol>
+    <symbol id="i-gear" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 1.55V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 9 19.4a1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.55-1H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.51 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.23.6.86 1 1.51 1H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1Z"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20.5 20.5-4.6-4.6"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></symbol>
+    <symbol id="i-fwd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></symbol>
+    <symbol id="i-reload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 3v4h-4"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="m12 3.5 2.5 5.4 5.9.7-4.4 4 1.2 5.8L12 16.5l-5.2 2.9L8 13.6 3.6 9.6l5.9-.7Z" fill="none"/></symbol>
+    <symbol id="i-star-fill" viewBox="0 0 24 24"><path d="m12 3.5 2.5 5.4 5.9.7-4.4 4 1.2 5.8L12 16.5l-5.2 2.9L8 13.6 3.6 9.6l5.9-.7Z" fill="currentColor"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></symbol>
+    <symbol id="i-external" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4 11 13"/><path d="M19 14v5a1.5 1.5 0 0 1-1.5 1.5h-12A1.5 1.5 0 0 1 4 19V7A1.5 1.5 0 0 1 5.5 5.5H10"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></symbol>
+    <symbol id="i-eye-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18"/><path d="M10.6 5.1A9.8 9.8 0 0 1 12 5c7 0 10 7 10 7a13.6 13.6 0 0 1-3.3 4"/><path d="M6.6 6.9A13.3 13.3 0 0 0 2 12s3 7 10 7a9.7 9.7 0 0 0 3.4-.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M12 3 5 5.8v5.4c0 4.6 3 7.9 7 9.3 4-1.4 7-4.7 7-9.3V5.8Z"/><path d="m9 11.5 2.2 2.2L15.5 9" stroke-linecap="round"/></symbol>
+    <symbol id="i-send" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M21 3 10.5 13.5M21 3l-6.8 18-3.7-7.5L3 9.8Z"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></symbol>
+    <symbol id="i-tri" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5Z"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.7A1.7 1.7 0 0 0 5 19.7Z"/><path d="M5 18.5V21h14"/></symbol>
+  </defs>
+</svg>
+
+<div id="bg" aria-hidden="true"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="grain"></div></div>
+
+<header id="topbar">
+  <button id="brand" data-goto-view="home" title="Pine home">
+    <svg class="brand-tree"><use href="#i-pine"/></svg>
+    <span class="brand-text">pine<em>.</em></span>
+    <span class="brand-tag">certified vibe source</span>
+  </button>
+  <div class="top-mid">
+    <span id="clock" title="Local time">--:--</span>
+    <span id="battery" class="chip-dim" hidden>100%</span>
+  </div>
+  <div class="top-right">
+    <button id="proxy-pill" class="pill" title="Proxy status — click for proxy settings">
+      <span class="dot dot-idle"></span><span id="proxy-pill-text">proxy idle</span>
+    </button>
+    <button id="coins-chip" class="pill pill-coins" title="Your coins — open Pine Pro">🪙 <span id="coins-count">0</span></button>
+    <button id="pro-btn" class="pill pill-pro">◆ Pine&nbsp;Pro</button>
+    <button id="panic-btn" class="icon-btn" title="Panic — leave now (or press the panic key)"><svg><use href="#i-eye-off"/></svg></button>
+    <button id="profile-chip" class="profile-chip" title="Profile & settings">
+      <span id="avatar" class="avatar">🌲</span>
+      <span class="profile-meta"><b id="profile-name">guest</b><i id="profile-level">Lv 1</i></span>
+    </button>
+  </div>
+</header>
+
+<nav id="rail" aria-label="Pine sections">
+  <button data-view="home" class="rail-btn active"><svg><use href="#i-home"/></svg><span>Home</span></button>
+  <button data-view="play" class="rail-btn"><svg><use href="#i-play"/></svg><span>Play</span></button>
+  <button data-view="apps" class="rail-btn"><svg><use href="#i-apps"/></svg><span>Apps</span></button>
+  <button data-view="chat" class="rail-btn"><svg><use href="#i-chat"/></svg><span>Chat</span><i id="chat-dot" class="rail-dot" hidden></i></button>
+  <button data-view="ai" class="rail-btn"><svg><use href="#i-ai"/></svg><span>AI</span></button>
+  <button data-view="listen" class="rail-btn"><svg><use href="#i-listen"/></svg><span>Listen</span></button>
+  <button data-view="watch" class="rail-btn"><svg><use href="#i-watch"/></svg><span>Watch</span></button>
+  <button data-view="browse" class="rail-btn"><svg><use href="#i-browse"/></svg><span>Browse</span><i id="browse-badge" class="rail-badge" hidden>0</i></button>
+  <div class="rail-spacer"></div>
+  <button data-view="settings" class="rail-btn"><svg><use href="#i-gear"/></svg><span>Settings</span></button>
+</nav>
+
+<main id="main">
+
+  <!-- ================= HOME ================= -->
+  <section class="view active" data-view="home">
+    <div class="hero">
+      <h1 id="greeting">Welcome back.</h1>
+      <p class="hero-sub"><span id="hero-date"></span> · Everything, on every site — through one pine-green door.</p>
+      <form id="home-form" class="omnibox big" autocomplete="off">
+        <svg class="omni-icon"><use href="#i-search"/></svg>
+        <input id="home-input" type="text" inputmode="search" placeholder="Search the web, or paste a URL…" aria-label="Search or enter a URL">
+        <button type="submit" class="omni-go">Go →</button>
+        <div id="home-suggest" class="suggest" hidden></div>
+      </form>
+      <div class="hero-hints">
+        <span class="hint">Try <code>!yt lo-fi beats</code>, <code>wikipedia.org</code>, or just words.</span>
+        <span class="hint-sep">·</span>
+        <button class="linklike" id="hint-engines">Engine: <b id="hint-engine-name">Scramjet</b></button>
+        <span class="hint-sep">·</span>
+        <button class="linklike" id="hint-cloak">Cloak this tab</button>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="card stat"><span class="stat-label">Proxy engine</span><b id="stat-proxy"> warming up…</b><span class="stat-sub" id="stat-proxy-sub">Scramjet · libcurl transport</span></div>
+      <div class="card stat"><span class="stat-label">Wisp tunnel</span><b id="stat-wisp">— ms</b><span class="stat-sub">encrypted WebSocket to this server</span></div>
+      <div class="card stat"><span class="stat-label">Exit node</span><b id="stat-egress">checking…</b><span class="stat-sub">the IP websites will see</span></div>
+      <div class="card stat stat-daily"><span class="stat-label">Daily coins</span><b id="stat-daily-amt">+250 🪙</b><button id="daily-btn" class="btn btn-acc sm">Claim</button></div>
+    </div>
+
+    <div id="continue-wrap" hidden>
+      <h2 class="sec-title">Jump back in</h2>
+      <div id="continue-row" class="h-scroll"></div>
+    </div>
+
+    <h2 class="sec-title">Quick launch</h2>
+    <div id="quick-grid" class="tile-grid"></div>
+
+    <div id="bookmarks-wrap" hidden>
+      <h2 class="sec-title">Bookmarks</h2>
+      <div id="bookmarks-row" class="h-scroll"></div>
+    </div>
+
+    <h2 class="sec-title">From the study library</h2>
+    <div id="study-grid" class="tile-grid"></div>
+
+    <div class="duo">
+      <div class="card info-card">
+        <h3>🛡️ How Pine works</h3>
+        <ol>
+          <li>You type a site. Pine's in-browser <b>Scramjet</b> engine rewrites it on the fly.</li>
+          <li>Traffic travels over an encrypted <b>Wisp</b> tunnel to this server — filters see one connection, to here.</li>
+          <li>Logins &amp; cookies stay in <b>your</b> browser. History too. The server sees none of it.</li>
+        </ol>
+        <button class="btn sm" data-goto-view="settings">Proxy settings</button>
+      </div>
+      <div class="card info-card">
+        <h3>🥷 Stay low-key</h3>
+        <p>Disguise this tab as Google Docs, open Pine inside an <code>about:blank</code> page, and bail instantly with the panic key (<code id="panic-key-hint">`</code>).</p>
+        <div class="btn-row">
+          <button class="btn sm" id="blank-btn">Open in about:blank</button>
+          <button class="btn sm" id="cloak-now-btn">Cloak tab</button>
+        </div>
+      </div>
+    </div>
+
+    <article id="seo" class="seo card">
+      <h2>Study Portal — Standards-Aligned Practice for Kindergarten Through Grade 12</h2>
+      <p>Study Portal is a free practice library for students, teachers and families. It covers mathematics, English language arts, science, social studies and world languages across every grade band, with diagnostic placement, spaced review and printable progress reports. Every skill is mapped to Common Core State Standards, the Next Generation Science Standards, or the relevant state framework, and every question ships with a step-by-step explanation rather than a bare answer key.</p>
+      <h3>Mathematics</h3>
+      <p>Kindergarten through grade 2 builds counting, place value and addition and subtraction within 100. Grades 3 to 5 cover multiplication and division fluency, equivalent fractions, decimals, area, volume and coordinate graphing. Middle school moves through ratios, integers, linear equations and the Pythagorean theorem, and high school tracks run from Algebra I through AP Calculus with worked solutions for quadratics, logarithms, trigonometric identities, limits, derivatives and integrals.</p>
+      <h3>English Language Arts</h3>
+      <p>Early literacy begins with phonemic awareness and decoding, then develops close reading of literary and informational text, author's purpose, figurative language and evidence-based analysis. Writing moves from sentence construction to narrative, expository, argumentative and research essays with MLA and APA citation, while grammar practice covers parts of speech, agreement, clauses and punctuation.</p>
+      <h3>Science &amp; Social Studies</h3>
+      <p>Science spans habitats, weather and the water cycle in elementary grades; cells, plate tectonics, chemical reactions and the solar system in middle school; and full Biology, Chemistry and Physics in high school. Social studies runs from ancient civilisations and early United States history through civics, geography, economics and personal financial literacy.</p>
+      <h3>World Languages &amp; Test Preparation</h3>
+      <p>Courses in Spanish, French, German, Italian, Mandarin, Japanese and more are mapped to CEFR bands A1–C1 and ACTFL levels. Preparation tracks cover the SAT and ACT, AP examinations, and language certifications including DELE, DELF, Goethe-Zertifikat, HSK and JLPT, with timed practice sections and per-topic score breakdowns.</p>
+    </article>
+    <footer class="home-foot">Pine · self-hosted &amp; open source · proxy: Scramjet + Wisp (Mercury Workshop) · <span id="ver">v1.0.0</span></footer>
+  </section>
+
+  <!-- ================= PLAY ================= -->
+  <section class="view" data-view="play">
+    <div class="view-head">
+      <div><h1>Play</h1><p>Built-in games work anywhere. The rest ride the proxy.</p></div>
+      <label class="searchbox"><svg><use href="#i-search"/></svg><input id="play-search" type="text" placeholder="Search games…"></label>
+    </div>
+    <div id="play-chips" class="chips"></div>
+    <div id="play-grid" class="tile-grid"></div>
+  </section>
+
+  <!-- ================= APPS ================= -->
+  <section class="view" data-view="apps">
+    <div class="view-head">
+      <div><h1>Apps</h1><p>Every tile opens through the proxy, signed-in state and all.</p></div>
+      <label class="searchbox"><svg><use href="#i-search"/></svg><input id="apps-search" type="text" placeholder="Search apps…"></label>
+    </div>
+    <div id="apps-chips" class="chips"></div>
+    <div id="apps-grid" class="tile-grid"></div>
+  </section>
+
+  <!-- ================= CHAT ================= -->
+  <section class="view" data-view="chat">
+    <div class="view-head">
+      <div><h1>Chat</h1><p>Everyone on this Pine, one forest. Be sound.</p></div>
+      <span id="chat-status" class="pill"><span class="dot dot-idle"></span>offline</span>
+    </div>
+    <div class="chat-layout card">
+      <aside class="chat-side">
+        <h4>Rooms</h4>
+        <div id="chat-rooms"></div>
+        <form id="chat-room-form" class="room-form">
+          <input id="chat-newroom" type="text" maxlength="24" placeholder="new-room-name">
+          <button class="btn sm" type="submit">Join</button>
+        </form>
+        <h4>In <span id="chat-room-now">lobby</span></h4>
+        <div id="chat-users" class="chat-users"></div>
+        <p class="fineprint">Chatting earns 🪙. Name, colour &amp; badge come from your profile (Settings).</p>
+      </aside>
+      <div class="chat-main">
+        <div id="chat-messages" class="chat-messages" aria-live="polite"></div>
+        <form id="chat-form" class="chat-send">
+          <input id="chat-input" type="text" maxlength="500" placeholder="Message #lobby…" autocomplete="off">
+          <button class="btn btn-acc" type="submit" aria-label="Send"><svg><use href="#i-send"/></svg></button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= AI ================= -->
+  <section class="view" data-view="ai">
+    <div class="view-head">
+      <div><h1>AI study buddy</h1><p id="ai-note">Local maths + conversions + web lookups. Add an API key in Settings for a full model.</p></div>
+      <button id="ai-clear" class="btn sm">New chat</button>
+    </div>
+    <div id="ai-messages" class="ai-messages"></div>
+    <div id="ai-chips" class="chips">
+      <button class="chip" data-q="15% of 230">15% of 230</button>
+      <button class="chip" data-q="5 km to miles">5 km → miles</button>
+      <button class="chip" data-q="sqrt(144) + 3^4">√144 + 3⁴</button>
+      <button class="chip" data-q="what is photosynthesis?">What is photosynthesis?</button>
+      <button class="chip" data-q="capital of Australia">Capital of Australia</button>
+      <button class="chip" data-q="help">What can you do?</button>
+    </div>
+    <form id="ai-form" class="ai-send card">
+      <input id="ai-input" type="text" placeholder="Ask anything… maths, facts, definitions" autocomplete="off">
+      <button class="btn btn-acc" type="submit">Ask</button>
+    </form>
+  </section>
+
+  <!-- ================= LISTEN ================= -->
+  <section class="view" data-view="listen">
+    <div class="view-head"><div><h1>Listen</h1><p>Generative stations play right here — no files, no blocks. Services open via proxy.</p></div></div>
+    <h2 class="sec-title">Pine FM — live-generated</h2>
+    <div id="stations-grid" class="tile-grid"></div>
+    <h2 class="sec-title">Streaming services</h2>
+    <div id="listen-grid" class="tile-grid"></div>
+  </section>
+
+  <!-- ================= WATCH ================= -->
+  <section class="view" data-view="watch">
+    <div class="view-head"><div><h1>Watch</h1><p>Search a service, or paste any video link.</p></div></div>
+    <form id="watch-form" class="omnibox" autocomplete="off">
+      <svg class="omni-icon"><use href="#i-search"/></svg>
+      <input id="watch-input" type="text" placeholder="Search YouTube… or paste a video URL">
+      <button type="submit" class="omni-go">Watch →</button>
+    </form>
+    <div class="chips" id="watch-chips">
+      <button class="chip active" data-ws="youtube">YouTube</button>
+      <button class="chip" data-ws="twitch">Twitch</button>
+      <button class="chip" data-ws="tiktok">TikTok</button>
+      <button class="chip" data-ws="dailymotion">Dailymotion</button>
+    </div>
+    <h2 class="sec-title">Services</h2>
+    <div id="watch-grid" class="tile-grid"></div>
+  </section>
+
+  <!-- ================= BROWSE ================= -->
+  <section class="view view-browse" data-view="browse">
+    <div class="browser card">
+      <div class="tabstrip-row">
+        <div id="tabstrip" class="tabstrip" role="tablist"></div>
+        <button id="tab-add" class="icon-btn" title="New tab (Alt+T)"><svg><use href="#i-plus"/></svg></button>
+      </div>
+      <div class="toolbar">
+        <button id="nav-back" class="icon-btn" title="Back"><svg><use href="#i-back"/></svg></button>
+        <button id="nav-fwd" class="icon-btn" title="Forward"><svg><use href="#i-fwd"/></svg></button>
+        <button id="nav-reload" class="icon-btn" title="Reload"><svg><use href="#i-reload"/></svg></button>
+        <button id="nav-home" class="icon-btn" title="Pine home"><svg><use href="#i-home"/></svg></button>
+        <form id="addr-form" class="omnibox slim" autocomplete="off">
+          <svg class="omni-icon"><use id="addr-lock" href="#i-shield"/></svg>
+          <input id="addr-input" type="text" inputmode="search" placeholder="Search or type a URL" aria-label="Address bar">
+          <div id="addr-suggest" class="suggest" hidden></div>
+        </form>
+        <button id="nav-star" class="icon-btn" title="Bookmark this page"><svg><use id="star-use" href="#i-star"/></svg></button>
+        <label class="engine-sel" title="Proxy engine for this tab">
+          <select id="engine-sel">
+            <option value="scramjet">Scramjet</option>
+            <option value="reader">Reader</option>
+            <option value="direct">Direct</option>
+          </select>
+        </label>
+        <div class="menu-wrap">
+          <button id="browser-menu-btn" class="icon-btn" title="Tab actions"><svg><use href="#i-dots"/></svg></button>
+          <div id="browser-menu" class="menu" hidden>
+            <button data-act="blank">Open in about:blank</button>
+            <button data-act="fullscreen">Fullscreen</button>
+            <button data-act="copy">Copy Pine link</button>
+            <button data-act="original">Open original ↗</button>
+            <hr>
+            <button data-act="engine-reader">Reopen in Reader</button>
+            <button data-act="engine-direct">Reopen Direct</button>
+            <button data-act="engine-scramjet">Reopen in Scramjet</button>
+            <hr>
+            <button data-act="history">History &amp; bookmarks…</button>
+          </div>
+        </div>
+      </div>
+      <div id="loadbar"><i></i></div>
+      <div id="frames">
+        <div id="browse-empty">
+          <svg class="empty-tree"><use href="#i-pine"/></svg>
+          <h2>A fresh grove.</h2>
+          <p>Type above, or pick somewhere to wander:</p>
+          <div id="empty-quick" class="chip-row"></div>
+        </div>
+        <div id="tab-error" class="tab-error" hidden>
+          <h2>🌲 That page didn't load</h2>
+          <p id="tab-error-msg">Something went wrong.</p>
+          <p class="tab-error-url" id="tab-error-url"></p>
+          <div class="btn-row center">
+            <button class="btn btn-acc" data-retry="scramjet">Retry</button>
+            <button class="btn" data-retry="reader">Try Reader mode</button>
+            <button class="btn" data-retry="direct">Try Direct</button>
+            <button class="btn" data-retry="transport">Switch transport</button>
+          </div>
+          <p class="fineprint">Some sites (banks, some logins) refuse all proxies — that's them, not you.</p>
+        </div>
+      </div>
+      <div class="statusbar">
+        <span id="status-engine">Scramjet</span><span class="dot-sep">·</span>
+        <span id="status-transport">libcurl</span><span class="dot-sep">·</span>
+        <span id="status-state">idle</span>
+        <span class="status-right" id="status-url"></span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SETTINGS ================= -->
+  <section class="view" data-view="settings">
+    <div class="view-head"><div><h1>Settings</h1><p>Everything is stored in this browser only.</p></div></div>
+
+    <div class="settings-grid">
+      <div class="card set-card">
+        <h3>👤 Profile</h3>
+        <label class="field">Display name
+          <input id="set-name" type="text" maxlength="24" placeholder="guest">
+        </label>
+        <label class="field">Avatar
+          <span id="set-avatars" class="swatch-row"></span>
+        </label>
+        <label class="field">Name colour
+          <span id="set-colors" class="swatch-row"></span>
+        </label>
+        <label class="field">Badge
+          <select id="set-badge"></select>
+        </label>
+        <label class="field">Profile effect
+          <select id="set-effect">
+            <option value="none">None</option>
+            <option value="glow">Avatar glow (shop)</option>
+            <option value="sparkle">Sparkle ring (shop)</option>
+          </select>
+        </label>
+        <div class="xp-wrap"><span id="set-level-text">Level 1</span><div class="xp-bar"><i id="set-xp-bar"></i></div><span id="set-xp-text">0 xp</span></div>
+      </div>
+
+      <div class="card set-card">
+        <h3>🌲 Proxy</h3>
+        <label class="field">Default engine
+          <select id="set-engine">
+            <option value="scramjet">Scramjet (full sites, logins, apps)</option>
+            <option value="reader">Reader (fast text mode, no JS)</option>
+            <option value="direct">Direct (plain iframe)</option>
+          </select>
+        </label>
+        <label class="field">Transport
+          <select id="set-transport">
+            <option value="libcurl">libcurl — best compatibility</option>
+            <option value="epoxy">epoxy — lighter, good fallback</option>
+          </select>
+        </label>
+        <label class="field">Search engine
+          <select id="set-search"></select>
+        </label>
+        <label class="field">Custom Wisp server <span class="field-hint">blank = this server</span>
+          <span class="inline-input"><input id="set-wisp" type="text" placeholder="wss://your-wisp.example/wisp/"><button id="wisp-test" class="btn sm" type="button">Test</button></span>
+        </label>
+        <p class="fineprint" id="wisp-test-out"></p>
+        <div class="btn-row">
+          <button id="proxy-reset" class="btn sm danger">Reset proxy (SW, cookies, cache)</button>
+        </div>
+      </div>
+
+      <div class="card set-card">
+        <h3>🥷 Cloak &amp; panic</h3>
+        <label class="field">Tab disguise
+          <select id="set-cloak"></select>
+        </label>
+        <label class="field">Custom title <span class="field-hint">overrides the preset</span>
+          <input id="set-cloak-title" type="text" maxlength="80" placeholder="My Essay - Google Docs">
+        </label>
+        <label class="field">Custom icon URL
+          <input id="set-cloak-icon" type="text" placeholder="https://…/favicon.ico">
+        </label>
+        <label class="check"><input id="set-cloak-hide" type="checkbox"> Auto-cloak when the tab is hidden</label>
+        <div class="btn-row">
+          <button id="set-blank" class="btn sm">Open Pine in about:blank</button>
+          <button id="set-cloak-apply" class="btn sm">Preview disguise</button>
+        </div>
+        <hr class="set-hr">
+        <label class="field">Panic key
+          <span class="inline-input">
+            <select id="set-panic-key">
+              <option value="`">` (backtick)</option>
+              <option value="Escape">Escape</option>
+              <option value="F9">F9</option>
+              <option value="\\">\ (backslash)</option>
+            </select>
+          </span>
+        </label>
+        <label class="field">Panic destination
+          <input id="set-panic-url" type="text" placeholder="https://classroom.google.com">
+        </label>
+      </div>
+
+      <div class="card set-card">
+        <h3>🎨 Appearance</h3>
+        <label class="field">Theme
+          <select id="set-theme"></select>
+        </label>
+        <label class="check"><input id="set-motion" type="checkbox"> Reduce motion</label>
+        <div class="theme-preview" id="theme-preview" aria-hidden="true">
+          <i></i><i></i><i></i><i></i>
+        </div>
+        <p class="fineprint">Shop themes unlock permanently with coins you earn around Pine.</p>
+        <button class="btn sm" id="open-shop-2">Open shop</button>
+      </div>
+
+      <div class="card set-card">
+        <h3>🤖 AI (optional)</h3>
+        <p class="fineprint">Bring an OpenAI-compatible key (OpenAI, OpenRouter, local models…). It's stored only here and sent directly to that API.</p>
+        <label class="field">API base URL
+          <input id="set-ai-base" type="text" placeholder="https://api.openai.com">
+        </label>
+        <label class="field">API key
+          <input id="set-ai-key" type="password" placeholder="sk-…" autocomplete="off">
+        </label>
+        <label class="field">Model
+          <input id="set-ai-model" type="text" placeholder="gpt-4o-mini">
+        </label>
+      </div>
+
+      <div class="card set-card">
+        <h3>🗂️ Your data</h3>
+        <div class="btn-col">
+          <button id="data-history" class="btn sm">View history &amp; bookmarks</button>
+          <button id="data-export" class="btn sm">Export settings (JSON)</button>
+          <button id="data-import" class="btn sm">Import settings</button>
+          <input id="data-import-file" type="file" accept="application/json" hidden>
+          <button id="data-clear-history" class="btn sm danger">Clear history</button>
+          <button id="data-reset" class="btn sm danger">Reset everything</button>
+        </div>
+        <hr class="set-hr">
+        <h4>Server</h4>
+        <p class="fineprint" id="server-stats">Loading…</p>
+        <button id="shortcuts-btn" class="btn sm">Keyboard shortcuts</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- music now-playing bar -->
+<div id="playerbar" hidden>
+  <canvas id="viz" width="54" height="34"></canvas>
+  <div class="np-meta"><b id="np-station">Pine FM</b><span id="np-track">—</span></div>
+  <button id="np-toggle" class="icon-btn round" title="Play / pause"><svg><use id="np-toggle-use" href="#i-pause"/></svg></button>
+  <input id="np-vol" type="range" min="0" max="100" value="75" title="Volume">
+  <button id="np-stop" class="icon-btn" title="Stop"><svg><use href="#i-x"/></svg></button>
+</div>
+
+<!-- game player overlay -->
+<div id="game-overlay" hidden>
+  <div class="game-bar">
+    <b id="game-title">Game</b>
+    <span class="fineprint">Built-in games can award 🪙 coins</span>
+    <span class="spacer"></span>
+    <button id="game-fs" class="icon-btn" title="Fullscreen"><svg><use href="#i-expand"/></svg></button>
+    <button id="game-close" class="icon-btn" title="Close"><svg><use href="#i-x"/></svg></button>
+  </div>
+  <iframe id="game-frame" title="Game" allow="fullscreen; autoplay; gamepad"></iframe>
+</div>
+
+<div id="modal-root"></div>
+<div id="toasts" aria-live="polite"></div>
+
+<noscript>
+  <div style="max-width:44rem;margin:3rem auto;font-family:system-ui;padding:0 1rem">
+    <h1>Student Practice Center</h1>
+    <p>Free standards-aligned practice for kindergarten through grade 12 across mathematics, English language arts, science, social studies and world languages. The interactive practice app needs JavaScript enabled.</p>
+  </div>
+</noscript>
+
+<script type="module" src="/js/app.js"></script>
+</body>
+</html>
