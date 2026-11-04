@@ -12,10 +12,38 @@ Your browsing history, cookies, logins, profile and coins never leave your brows
 
 ---
 
-## Quick start
+## 🌐 Get your own proxy website (free, ~2 minutes, no coding)
+
+This repo is the *code*. To turn it into a website you can open in your browser — like
+Tung Tung or Rook — it has to run on a host. GitHub only stores code; it can't run a proxy
+(a real web proxy needs a live server + WebSockets, so GitHub Pages won't work).
+
+**Easiest: one-click deploy to Render (free tier works):**
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/socks275/Relay-hub)
+
+1. Click the button and sign in with your GitHub account.
+2. Click **Create Web Service** (everything is pre-filled from `render.yaml`).
+3. Wait for the first build (~1–2 min), then open your new `https://…onrender.com` link.
+
+That's your proxy website: type any site or search into the bar and browse — Home, Play,
+Apps, Chat, AI, Listen and Watch included. Bookmark it, share it, done.
+
+Notes:
+- Render's free tier **sleeps after ~15 min idle** — the first visit after that takes
+  ~30–50 s to wake up, then it's fast again. (Any paid/always-on host avoids this.)
+- To stop strangers using your instance, set `PINE_PASS` in Render → your service →
+  **Environment** (see [Configuration](#configuration)). You'll get a login prompt;
+  the username is whatever you set `PINE_USER` to (default `pine`).
+
+Other hosts are covered in [Deploy](#deploy) below (Fly.io, Railway, Docker/VPS).
+
+---
+
+## Quick start (run it on your own machine)
 
 ```bash
-git clone https://github.com/<you>/Relay-hub.git
+git clone https://github.com/socks275/Relay-hub.git
 cd Relay-hub
 npm ci
 node server.js

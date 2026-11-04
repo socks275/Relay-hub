@@ -1,8 +1,10 @@
-# Pine on Render — New → Blueprint → select this repo.
+# Pine on Render — one-click: https://render.com/deploy?repo=https://github.com/socks275/Relay-hub
+# (or manually: New → Blueprint → select this repo.)
 services:
   - type: web
     name: pine-hub
     runtime: node
+    plan: free
     region: Frankfurt
     buildCommand: npm ci --ignore-scripts
     startCommand: node server.js
