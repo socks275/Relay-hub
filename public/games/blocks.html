@@ -1,0 +1,204 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Blockfall — Pine</title>
+<style>
+  body{margin:0;background:#0a140d;color:#eaf5ee;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:1rem;box-sizing:border-box}
+  h1{font-family:Georgia,serif;font-style:italic;margin:.2rem 0}
+  .layout{display:flex;gap:1rem;align-items:flex-start}
+  canvas{background:#0d1f13;border:1px solid #24402e;border-radius:12px}
+  .side{display:flex;flex-direction:column;gap:.6rem;min-width:120px}
+  .pill{background:#122419;border:1px solid #24402e;border-radius:12px;padding:.45rem .7rem;font-size:.82rem;font-weight:650;text-align:center}
+  .pill b{display:block;font-size:1.05rem}
+  button{background:#35d07f;color:#06240f;border:0;border-radius:10px;padding:.55rem .9rem;font-weight:700;cursor:pointer}
+  .hint{color:#73907e;font-size:.78rem;max-width:480px;text-align:center;line-height:1.55}
+  .touch{display:none;gap:.35rem;margin-top:.6rem}
+  .touch button{background:#1a3322;color:#eaf5ee;border:1px solid #2c5c40;width:52px;height:48px;font-size:1rem}
+  @media(pointer:coarse){.touch{display:flex}}
+</style>
+<h1>🧱 blockfall</h1>
+<div class="layout">
+  <canvas id="cv" width="300" height="600"></canvas>
+  <div class="side">
+    <div class="pill">SCORE<b id="score">0</b></div>
+    <div class="pill">LINES<b id="lines">0</b></div>
+    <div class="pill">LEVEL<b id="level">1</b></div>
+    <div class="pill">🪙 EARNED<b id="coins">0</b></div>
+    <div class="pill">NEXT<br><canvas id="next" width="90" height="70"></canvas></div>
+    <div class="pill">HOLD (C)<br><canvas id="hold" width="90" height="70"></canvas></div>
+    <button id="restart">Restart</button>
+  </div>
+</div>
+<div class="touch">
+  <button data-k="left">◀</button><button data-k="right">▶</button><button data-k="down">▼</button>
+  <button data-k="rot">⟳</button><button data-k="drop">⤓</button><button data-k="hold">C</button>
+</div>
+<p class="hint">← → move · ↑ rotate · ↓ soft drop · Space hard drop · C hold · P pause.<br>Line clears pay coins: 1/2/3/4 lines = 1/3/6/12 🪙 (× level bonus every 5 levels).</p>
+<script>
+"use strict";
+const W=10,H=20,S=30;
+const cv=document.getElementById("cv"),ctx=cv.getContext("2d");
+const pineCoins=n=>{try{parent.postMessage({pineCoins:n},"*")}catch(e){}};
+const SHAPES={
+  I:{c:"#6cb8ff",m:[[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]]},
+  J:{c:"#5e9bff",m:[[1,0,0],[1,1,1],[0,0,0]]},
+  L:{c:"#ffb26b",m:[[0,0,1],[1,1,1],[0,0,0]]},
+  O:{c:"#f5c451",m:[[1,1],[1,1]]},
+  S:{c:"#35d07f",m:[[0,1,1],[1,1,0],[0,0,0]]},
+  T:{c:"#c4a7fd",m:[[0,1,0],[1,1,1],[0,0,0]]},
+  Z:{c:"#ff8fa3",m:[[1,1,0],[0,1,1],[0,0,0]]}
+};
+const KEYS=Object.keys(SHAPES);
+let board,bag,cur,next,held,canHold,score,lines,level,coins,dropAt,last,over,paused;
+let groundAt=null,lockResets=0; // lock-delay state
+const LOCK_MS=450,MAX_LOCK_RESETS=15;
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function refill(){bag=shuffle([...KEYS])}
+function take(){if(!bag.length)refill();return bag.pop()}
+function spawn(type){
+  const m=SHAPES[type].m.map(r=>[...r]);
+  const p={type,m,x:Math.floor((W-m[0].length)/2),y:type==="I"?-1:0};
+  groundAt=null;lockResets=0;
+  if(collides(p,p.x,p.y)){over=true}
+  return p;
+}
+function nudgeLock(){
+  // A successful move/rotate while grounded restarts the lock clock,
+  // a limited number of times (guideline behaviour).
+  if(groundAt!==null&&lockResets<MAX_LOCK_RESETS){groundAt=performance.now();lockResets++}
+}
+function collides(p,x,y){
+  return p.m.some((row,dy)=>row.some((v,dx)=>{
+    if(!v)return false;
+    const bx=x+dx,by=y+dy;
+    return bx<0||bx>=W||by>=H||(by>=0&&board[by][bx]);
+  }));
+}
+function merge(){
+  cur.m.forEach((row,dy)=>row.forEach((v,dx)=>{
+    if(v&&cur.y+dy>=0)board[cur.y+dy][cur.x+dx]=SHAPES[cur.type].c;
+  }));
+}
+const PAY=[0,1,3,6,12];
+function clearLines(){
+  let n=0;
+  for(let y=H-1;y>=0;y--){
+    if(board[y].every(Boolean)){board.splice(y,1);board.unshift(Array(W).fill(null));n++;y++}
+  }
+  if(n){
+    lines+=n;score+=[0,100,300,500,800][n]*level;
+    const pay=PAY[n]+Math.floor(level/5)*n;
+    coins+=pay;pineCoins(pay);
+    level=1+Math.floor(lines/10);
+    update();
+  }
+}
+function lock(){
+  merge();clearLines();
+  cur=spawn(next);next=take();canHold=true;
+  drawSide();
+}
+function hardDrop(){while(!collides(cur,cur.x,cur.y+1)){cur.y++;score+=2}lock();update()}
+function softStep(){
+  // Soft drop never force-locks; the lock timer in frame() handles it.
+  if(!collides(cur,cur.x,cur.y+1)){cur.y++;score+=1;groundAt=null;dropAt=performance.now()+interval()}
+  update();
+}
+function rotate(){
+  const m=cur.m,rot=m[0].map((_,i)=>m.map(r=>r[i]).reverse());
+  const old=cur.m;cur.m=rot;
+  for(const kick of [0,-1,1,-2,2]){
+    if(!collides(cur,cur.x+kick,cur.y)){cur.x+=kick;nudgeLock();return}
+  }
+  cur.m=old;
+}
+function hold(){
+  if(!canHold)return;
+  const t=cur.type;
+  if(held){cur=spawn(held)}else{cur=spawn(next);next=take()}
+  held=t;canHold=false;drawSide();
+}
+function ghostY(){let y=cur.y;while(!collides(cur,cur.x,y+1))y++;return y}
+function cell(c2d,x,y,color,ghost){
+  c2d.fillStyle=color;c2d.globalAlpha=ghost?.22:1;
+  c2d.beginPath();c2d.roundRect(x*S+1.5,y*S+1.5,S-3,S-3,5);c2d.fill();c2d.globalAlpha=1;
+}
+function draw(){
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.strokeStyle="rgba(53,208,127,.06)";
+  for(let i=1;i<W;i++){ctx.beginPath();ctx.moveTo(i*S,0);ctx.lineTo(i*S,cv.height);ctx.stroke()}
+  for(let i=1;i<H;i++){ctx.beginPath();ctx.moveTo(0,i*S);ctx.lineTo(cv.width,i*S);ctx.stroke()}
+  board.forEach((row,y)=>row.forEach((v,x)=>{if(v)cell(ctx,x,y,v)}));
+  if(cur&&!over){
+    const gy=ghostY();
+    cur.m.forEach((row,dy)=>row.forEach((v,dx)=>{if(v&&gy+dy>=0)cell(ctx,cur.x+dx,gy+dy,SHAPES[cur.type].c,true)}));
+    cur.m.forEach((row,dy)=>row.forEach((v,dx)=>{if(v&&cur.y+dy>=0)cell(ctx,cur.x+dx,cur.y+dy,SHAPES[cur.type].c)}));
+  }
+  if(over||paused){
+    ctx.fillStyle="rgba(4,12,7,.78)";ctx.fillRect(0,0,cv.width,cv.height);
+    ctx.fillStyle="#eaf5ee";ctx.textAlign="center";ctx.font="italic 700 30px Georgia";
+    ctx.fillText(over?"game over":"paused",cv.width/2,cv.height/2);
+    ctx.font="14px system-ui";ctx.fillStyle="#a9c2b1";
+    ctx.fillText(over?`score ${score} · ${lines} lines — Enter to retry`:"press P to resume",cv.width/2,cv.height/2+24);
+  }
+}
+function drawMini(id,type){
+  const c=document.getElementById(id),g=c.getContext("2d");
+  g.clearRect(0,0,c.width,c.height);
+  if(!type)return;
+  const m=SHAPES[type].m,s=16;
+  const w=m[0].length*s,h=m.filter(r=>r.some(Boolean)).length*s;
+  const ox=(c.width-w)/2,oy=(c.height-h)/2;
+  m.forEach((row,y)=>row.forEach((v,x)=>{
+    if(!v)return;
+    g.fillStyle=SHAPES[type].c;
+    g.beginPath();g.roundRect(ox+x*s+1,oy+y*s+1,s-2,s-2,3);g.fill();
+  }));
+}
+function drawSide(){drawMini("next",next);drawMini("hold",held)}
+function update(){
+  document.getElementById("score").textContent=score;
+  document.getElementById("lines").textContent=lines;
+  document.getElementById("level").textContent=level;
+  document.getElementById("coins").textContent=coins;
+}
+function reset(){
+  board=Array.from({length:H},()=>Array(W).fill(null));
+  bag=[];score=0;lines=0;level=1;coins=0;over=false;paused=false;held=null;canHold=true;
+  next=take();cur=spawn(take());
+  last=performance.now();dropAt=last+interval();
+  drawSide();update();
+}
+const interval=()=>Math.max(60,650-(level-1)*55);
+function frame(now){
+  requestAnimationFrame(frame);
+  if(over||paused){draw();last=now;groundAt=null;return}
+  const grounded=collides(cur,cur.x,cur.y+1);
+  if(!grounded){
+    groundAt=null;lockResets=0;
+    if(now>=dropAt){cur.y++;dropAt=now+interval()}
+  }else{
+    if(groundAt===null)groundAt=now;
+    else if(now-groundAt>=LOCK_MS){lock();groundAt=null;lockResets=0;dropAt=now+interval()}
+  }
+  draw();
+}
+const ACTIONS={
+  left:()=>{if(!collides(cur,cur.x-1,cur.y)){cur.x--;nudgeLock()}},
+  right:()=>{if(!collides(cur,cur.x+1,cur.y)){cur.x++;nudgeLock()}},
+  down:()=>softStep(),
+  rot:()=>rotate(),
+  drop:()=>hardDrop(),
+  hold:()=>hold()
+};
+addEventListener("keydown",e=>{
+  if(e.key==="Enter"&&over){reset();return}
+  if(over)return;
+  const map={ArrowLeft:"left",ArrowRight:"right",ArrowDown:"down",ArrowUp:"rot"," ":"drop",c:"hold",C:"hold"};
+  if(e.key==="p"||e.key==="P"){paused=!paused;return}
+  if(paused)return;
+  const a=map[e.key];
+  if(a){ACTIONS[a]();e.preventDefault();draw()}
+});
+document.querySelectorAll("[data-k]").forEach(b=>b.addEventListener("click",()=>{if(!over&&!paused){ACTIONS[b.dataset.k]();draw()}}));
+document.getElementById("restart").addEventListener("click",reset);
+reset();requestAnimationFrame(frame);
+</script>

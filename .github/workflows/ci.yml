@@ -4,84 +4,36 @@ on:
   push:
     branches: [main]
   pull_request:
-  workflow_dispatch:
 
 jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
-      fail-fast: false
       matrix:
-        node-version: ['18', '20', '22']
-
+        node: [20, 22]
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --check server.js
+      - run: npm test
 
-      - name: Syntax check
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t pine:test .
+      - name: Smoke test
         run: |
-          node --check server.js
-          for f in src/*.js src/rewrite/*.js; do node --check "$f"; done
-
-      - name: Unit, security and integration tests
-        run: npm test
-
-      - name: Boot the real server and smoke-test every route
-        run: |
-          node server.js &
-          SERVER_PID=$!
-          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
-
-          for i in $(seq 1 40); do
-            curl -sf -o /dev/null http://127.0.0.1:3000/healthz && break
-            sleep 0.5
+          docker run -d --name pine -p 3000:3000 pine:test
+          for i in $(seq 1 20); do
+            curl -fs http://127.0.0.1:3000/healthz && break || sleep 1
           done
-
-          check () {
-            local name="$1" path="$2" want="$3"
-            local got
-            got=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:3000$path")
-            printf '%-14s %s (want %s)\n' "$name" "$got" "$want"
-            if [ "$got" != "$want" ]; then echo "FAIL: $name"; exit 1; fi
-          }
-
-          check healthz   /healthz          200
-          check hub       /                 200
-          check browse    /browse           200
-          check theme     /assets/theme.css 200
-          check config    /api/config       200
-          check stats     /api/stats        200
-          check favicon   /favicon.svg      200
-          check robots    /robots.txt       200
-
-          # Traversal must never serve a source file.
-          for p in '/assets/../server.js' '/assets/..%2fserver.js' '/assets/%2e%2e/package.json'; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' "http://127.0.0.1:3000$p")
-            printf 'traversal %-28s %s\n' "$p" "$code"
-            if [ "$code" = "200" ]; then echo "FAIL: traversal"; exit 1; fi
-          done
-
-          # SSRF: a private target must be refused, not fetched.
-          code=$(curl -s -o /dev/null -w '%{http_code}' \
-            'http://127.0.0.1:3000/fetch?url=http%3A%2F%2F169.254.169.254%2Flatest%2Fmeta-data%2F')
-          printf 'ssrf metadata  %s\n' "$code"
-          if [ "$code" = "200" ]; then echo "FAIL: SSRF"; exit 1; fi
-
-      - name: Docker build
-        run: docker build -t relay-hub:ci .
-
-      - name: Docker smoke test
-        run: |
-          docker run -d --name relay-ci -p 3100:3000 relay-hub:ci
-          for i in $(seq 1 40); do
-            curl -sf -o /dev/null http://127.0.0.1:3100/healthz && break
-            sleep 0.5
-          done
-          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3100/)
-          echo "container hub: $code"
-          docker logs relay-ci
-          docker rm -f relay-ci
-          test "$code" = "200"
+          curl -fs http://127.0.0.1:3000/api/config | grep -q '"engines"'
+          curl -fsI http://127.0.0.1:3000/scram/scramjet.wasm | grep -qi 'application/wasm'
+          docker logs pine
+          docker rm -f pine

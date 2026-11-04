@@ -1,0 +1,92 @@
+<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Memory Grove — Pine</title>
+<style>
+  body{margin:0;background:#0a140d;color:#eaf5ee;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh;padding:1rem;box-sizing:border-box}
+  h1{font-family:Georgia,serif;font-style:italic;margin:.2rem 0}
+  .bar{display:flex;gap:.6rem;align-items:center;flex-wrap:wrap;justify-content:center;margin:.5rem 0}
+  .pill{background:#122419;border:1px solid #24402e;border-radius:999px;padding:.35rem .8rem;font-size:.85rem;font-weight:650}
+  button,select{background:#1a3322;color:#eaf5ee;border:1px solid #2c5c40;border-radius:10px;padding:.5rem .8rem;font-weight:650;cursor:pointer}
+  .acc{background:#35d07f;color:#06240f;border-color:transparent}
+  #grid{display:grid;gap:.55rem;margin-top:.6rem}
+  .card{width:70px;height:86px;border-radius:12px;border:1px solid #2c5c40;background:#122419;display:grid;place-items:center;font-size:2rem;cursor:pointer;transition:transform .18s,background .18s;user-select:none}
+  .card:hover{transform:translateY(-2px)}
+  .card.open{background:#eaf5ee;cursor:default}
+  .card.done{background:#def7e7;opacity:.85;cursor:default;border-color:#35d07f}
+  .card .back{color:#35d07f;font-size:1.5rem}
+  .hint{color:#73907e;font-size:.8rem}
+  @media(max-width:540px){.card{width:54px;height:68px;font-size:1.6rem}}
+</style>
+<h1>🍄 memory grove</h1>
+<div class="bar">
+  <span class="pill">Moves <b id="moves">0</b></span>
+  <span class="pill">Time <b id="time">0:00</b></span>
+  <span class="pill">Pairs <b id="pairs">0/8</b></span>
+  <select id="size">
+    <option value="6">Easy · 6 pairs</option>
+    <option value="8" selected>Classic · 8 pairs</option>
+    <option value="12">Deep forest · 12 pairs</option>
+  </select>
+  <button class="acc" id="restart">New game</button>
+</div>
+<div id="grid"></div>
+<p class="hint" id="msg">Match all the forest pairs. Faster + fewer moves = more 🪙 (up to 15 for Classic).</p>
+<script>
+"use strict";
+const pineCoins=n=>{try{parent.postMessage({pineCoins:n},"*")}catch(e){}};
+const EMOJI=["🌲","🍄","🦊","🐸","🦉","🌰","🍃","🐿️","🌸","🍓","🐌","🪵"];
+let first=null,lock=false,moves=0,matched=0,total=8,t0=null,timer=null,paid=false;
+function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}
+function setup(){
+  clearInterval(timer);t0=null;paid=false;first=null;lock=false;moves=0;matched=0;
+  total=Number(document.getElementById("size").value);
+  const deck=shuffle([...EMOJI.slice(0,total),...EMOJI.slice(0,total)]);
+  const grid=document.getElementById("grid");
+  grid.style.gridTemplateColumns=`repeat(${total===6?4:total===8?4:6},auto)`;
+  grid.innerHTML=deck.map((e,i)=>`<div class="card" data-e="${e}" data-i="${i}"><span class="back">🌿</span></div>`).join("");
+  grid.querySelectorAll(".card").forEach(c=>c.addEventListener("click",()=>flip(c)));
+  document.getElementById("msg").textContent="Match all the forest pairs.";
+  update();
+}
+function update(){
+  document.getElementById("moves").textContent=moves;
+  document.getElementById("pairs").textContent=`${matched}/${total}`;
+}
+function tick(){
+  const s=Math.floor((Date.now()-t0)/1000);
+  document.getElementById("time").textContent=`${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+}
+function flip(c){
+  if(lock||c.classList.contains("open")||c.classList.contains("done"))return;
+  if(!t0){t0=Date.now();timer=setInterval(tick,500)}
+  c.classList.add("open");c.textContent=c.dataset.e;
+  if(!first){first=c;return}
+  moves++;
+  if(first.dataset.e===c.dataset.e){
+    first.classList.add("done");c.classList.add("done");
+    matched++;first=null;update();
+    if(matched===total)win();
+  }else{
+    lock=true;
+    const a=first;first=null;
+    setTimeout(()=>{
+      a.classList.remove("open");c.classList.remove("open");
+      a.innerHTML='<span class="back">🌿</span>';c.innerHTML='<span class="back">🌿</span>';
+      lock=false;
+    },680);
+    update();
+  }
+}
+function win(){
+  clearInterval(timer);
+  const secs=Math.floor((Date.now()-t0)/1000);
+  // Reward: base by size, bonuses for speed & few moves.
+  let coins=total===6?6:total===8?10:16;
+  if(secs<=60)coins+=3; if(secs<=35)coins+=2;
+  if(moves<=total*1.4)coins+=3;
+  if(!paid){pineCoins(coins);paid=true}
+  document.getElementById("msg").textContent=`🎉 Cleared in ${moves} moves and ${secs}s — earned ${coins} 🪙!`;
+}
+document.getElementById("restart").addEventListener("click",setup);
+document.getElementById("size").addEventListener("change",setup);
+setup();
+</script>

@@ -1,37 +1,39 @@
 {
-  "name": "relay-hub",
-  "version": "2.1.0",
-  "description": "A self-hosted web proxy with a launcher-style home screen. Rewrites pages server-side so any site works through it.",
+  "name": "pine",
+  "version": "1.0.0",
+  "description": "Pine — a fast, self-hosted web hub with a Scramjet-powered browser proxy. Play, Apps, Chat, AI, Listen, Watch, Browse.",
   "main": "server.js",
-  "type": "commonjs",
+  "type": "module",
   "scripts": {
     "start": "node server.js",
-    "dev": "RELAY_LOG_LEVEL=debug node --watch server.js",
-    "test": "node --test test/unit.test.js test/security.test.js test/integration.test.js",
-    "test:unit": "node --test test/unit.test.js",
-    "test:security": "node --test test/security.test.js",
-    "test:integration": "node --test test/integration.test.js",
+    "dev": "PINE_LOG_LEVEL=debug node --watch server.js",
+    "test": "node --test test/unit.test.js test/integration.test.js test/smoke.test.js",
     "check": "node --check server.js && npm test"
   },
   "engines": {
     "node": ">=18"
   },
-  "files": [
-    "server.js",
-    "src/",
-    "public/"
-  ],
   "keywords": [
     "proxy",
     "web-proxy",
+    "scramjet",
+    "wisp",
     "self-hosted",
-    "privacy",
-    "launcher",
-    "start-page",
-    "cors-proxy",
     "unblocker"
   ],
-  "license": "MIT",
-  "dependencies": {},
-  "devDependencies": {}
+  "license": "AGPL-3.0-only",
+  "dependencies": {
+    "@mercuryworkshop/epoxy-transport": "3.0.2",
+    "@mercuryworkshop/libcurl-transport": "2.0.6",
+    "@mercuryworkshop/proxy-transports": "1.0.2",
+    "@mercuryworkshop/scramjet": "2.0.67-alpha.1",
+    "@mercuryworkshop/scramjet-controller": "0.0.13",
+    "@mercuryworkshop/scramjet-utils": "0.0.3",
+    "@mercuryworkshop/wisp-js": "0.5.2",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "jsdom": "^26.1.0"
+  }
 }
