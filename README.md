@@ -7,40 +7,72 @@ around a genuinely excellent proxy: [Scramjet](https://github.com/MercuryWorksho
 [Wisp](https://github.com/MercuryWorkshop/wisp-protocol), with a server-side Reader engine
 as a no-JavaScript fallback.
 
-One Node process serves the hub, the proxy worker, the Wisp tunnel and the chat server.
-Your browsing history, cookies, logins, profile and coins never leave your browser.
+Pine ships in two editions from this one codebase:
+
+- **GitHub Pages edition (primary)** — GitHub serves only static HTML/CSS/JS/WASM.
+  The Scramjet engine runs in your browser and tunnels through public Wisp endpoints with
+  automatic failover (or a custom one you choose in Settings). No Render, VPS or other
+  hosting account is required.
+- **Node edition (optional)** — one Node process serves the hub, its own Wisp tunnel,
+  the server-side Reader and multi-user chat.
+
+In both editions your browsing history, cookies, logins, profile and coins stay in your
+browser.
 
 ---
 
-## 🌐 Get your own proxy website (free, ~2 minutes, no coding)
+## 🌐 Use Pine on GitHub Pages (100% GitHub)
 
-This repo is the *code*. To turn it into a website you can open in your browser — like
-Tung Tung or Rook — it has to run on a host. GitHub only stores code; it can't run a proxy
-(a real web proxy needs a live server + WebSockets, so GitHub Pages won't work).
+### 👉 **https://socks275.github.io/Relay-hub/**
 
-**Easiest: one-click deploy to Render (free tier works):**
+Open that link, type a website or search into the bar, and browse. That is the web proxy —
+Home, Play, Apps, AI, Listen, Watch and Browse, like Tung Tung/Rook — with no Render or
+other hosting account involved.
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/socks275/Relay-hub)
+GitHub Actions rebuilds and publishes the site automatically on every push to `main`
+(`.github/workflows/pages.yml`). The generated site is subpath-safe, so forks work at
+`https://<user>.github.io/<repo>/` too.
 
-1. Click the button and sign in with your GitHub account.
-2. Click **Create Web Service** (everything is pre-filled from `render.yaml`).
-3. Wait for the first build (~1–2 min), then open your new `https://…onrender.com` link.
+**One-time owner setting:** if the Pages workflow says Pages is not enabled, open
+**GitHub repo → Settings → Pages → Build and deployment → Source: GitHub Actions**.
+That is still entirely inside GitHub; after that, deployments are automatic.
 
-That's your proxy website: type any site or search into the bar and browse — Home, Play,
-Apps, Chat, AI, Listen and Watch included. Bookmark it, share it, done.
+How can a static GitHub site be a working proxy?
 
-Notes:
-- Render's free tier **sleeps after ~15 min idle** — the first visit after that takes
-  ~30–50 s to wake up, then it's fast again. (Any paid/always-on host avoids this.)
-- To stop strangers using your instance, set `PINE_PASS` in Render → your service →
-  **Environment** (see [Configuration](#configuration)). You'll get a login prompt;
-  the username is whatever you set `PINE_USER` to (default `pine`).
+1. GitHub Pages serves Pine's page, service worker and pinned Scramjet WASM bundles.
+2. Scramjet intercepts and rewrites the proxied site **inside your browser**.
+3. libcurl/epoxy carries the encrypted browser traffic over Wisp to a public endpoint.
+   Pine probes its public-endpoint pool from your network and uses the first reachable
+   one. Settings → Proxy can pin a custom Wisp server instead.
 
-Other hosts are covered in [Deploy](#deploy) below (Fly.io, Railway, Docker/VPS).
+Important trade-offs of the free public endpoints:
+
+- They are run by third parties, so they can be busy, rate-limited, blocked by a school
+  filter, or disappear. Pine fails over between several; a custom endpoint is the reliable
+  option.
+- A Wisp endpoint necessarily sees the destination hostnames it connects you to. HTTPS
+  page contents remain encrypted between your browser and the destination.
+- **Reader** and **multi-user Chat** are the only hub features that need Pine's Node
+  backend. The Pages UI clearly disables them; Scramjet/Direct browsing, apps, games,
+  local AI + direct DuckDuckGo lookups, suggestions, music, bookmarks and coins work.
+
+Build the same static site locally with:
+
+```bash
+npm ci
+npm run build:pages
+# output: dist-pages/
+```
+
+Override the public Wisp pool at build time with a comma-separated list:
+
+```bash
+PINE_PAGES_WISP="wss://your-wisp.example/wisp/,wss://backup.example/" npm run build:pages
+```
 
 ---
 
-## Quick start (run it on your own machine)
+## Quick start — optional Node edition (run it on your own machine)
 
 ```bash
 git clone https://github.com/socks275/Relay-hub.git
@@ -50,8 +82,9 @@ node server.js
 # → http://localhost:3000
 ```
 
-That's it. The Scramjet bundles are pinned in `package.json` and served locally — nothing is
-downloaded at runtime, and there is no build step.
+That's it for the Node edition. The Scramjet bundles are pinned in `package.json` and
+served locally — nothing is downloaded at runtime and the server needs no build step.
+(The Pages edition has one assembly step, `npm run build:pages`, handled by GitHub Actions.)
 
 ### Docker
 
@@ -65,10 +98,11 @@ docker run -p 3000:3000 -e PINE_PASS=something-long pine
 
 | Host | How |
 | --- | --- |
-| **Fly.io** | `fly launch --copy-config --now` (uses `fly.toml`) |
-| **Render** | New → Blueprint → point at this repo (uses `render.yaml`) |
-| **Railway** | New project → Deploy from repo (uses `railway.json`) |
-| **Any VPS** | `docker compose up -d`, put Caddy/nginx/Cloudflare in front for TLS |
+| **GitHub Pages (recommended)** | Automatic via `.github/workflows/pages.yml` on pushes to `main`; enable **Settings → Pages → GitHub Actions** once |
+| **Fly.io (Node edition)** | `fly launch --copy-config --now` (uses `fly.toml`) |
+| **Render (Node edition)** | New → Blueprint → point at this repo (uses `render.yaml`) |
+| **Railway (Node edition)** | New project → Deploy from repo (uses `railway.json`) |
+| **Any VPS (Node edition)** | `docker compose up -d`, put Caddy/nginx/Cloudflare in front for TLS |
 
 > A working proxy **requires HTTPS** in production (service workers need a secure context).
 > Fly/Render/Railway terminate TLS for you. On `localhost` it works over plain HTTP.
@@ -85,8 +119,10 @@ Pine has three engines, switchable per tab:
 ### 1. Scramjet (default)
 Scramjet is an *interception*-based proxy: a service worker captures every request a proxied
 page makes, a WASM rewriter rewrites its HTML/CSS/JS in your browser, and a transport carries
-the traffic over one encrypted **Wisp** WebSocket to this server, which opens the real TCP
-connections. Because rewriting happens client-side and ports/behaviour look like a real browser,
+the traffic over one encrypted **Wisp** WebSocket to the selected endpoint, which opens the
+real TCP connections. That endpoint is Pine's bundled server in the Node edition, or a
+public/custom Wisp server in the GitHub Pages edition. Because rewriting happens client-side
+and ports/behaviour look like a real browser,
 the compatibility list is the best in class — Google, YouTube, Discord, Reddit, ChatGPT,
 Spotify, Instagram, GeForce NOW and most other heavy web apps work, **with logins**
 (cookies persist per-browser in IndexedDB).
@@ -101,7 +137,7 @@ Supporting cast: an HTTP cache plugin for repeat-visit speed, live address-bar s
 per-tab titles, a navigation watchdog with a friendly "try another engine/transport"
 recovery screen, and an optional **custom Wisp server** if you want your tunnel elsewhere.
 
-### 2. Reader
+### 2. Reader (Node edition)
 A from-scratch server-side fetch + rewrite engine (`/api/fetch`). The server fetches the page,
 strips scripts/trackers, rewrites links/images/CSS/forms back through itself, and presents a
 clean reading view. No JS required, works even where WebSockets are blocked, and unwraps
@@ -138,8 +174,9 @@ public instance.
   Mines, Coin Clicker) that work offline and pay real Pine coins, plus a proxied catalogue
   (Poki, Krunker, Shell Shockers, Minecraft Classic, 1v1.LOL…).
 - **Apps** — 44 sites organised by category, all through the proxy.
-- **Chat** — real multi-room community chat served by this process: colours, badges,
-  presence, history, custom rooms. Chatting earns coins.
+- **Chat** — real multi-room community chat in the Node edition: colours, badges,
+  presence, history, custom rooms. Chatting earns coins. (The Pages edition shows why
+  a static site cannot relay messages between different users.)
 - **AI** — a study buddy that works with zero setup: a local maths engine
   (`15% of 230`, `sqrt(144) + 3^4`), unit conversions, and cited web lookups — or plug in
   any OpenAI-compatible API key (stored only in your browser).
@@ -183,8 +220,12 @@ All optional, from the environment (see `.env.example`):
 | `PINE_RATE_LIMIT` | `0` | Requests/min/IP on `/api/fetch` (0 = off) |
 | `PINE_LOG_LEVEL` | `info` | silent · error · warn · info · debug |
 | `PINE_TRUST_PROXY` | `1` | Trust `X-Forwarded-For` for logs/limits |
+| `PINE_PAGES_WISP` | public pool | Build-time comma-separated Wisp pool baked into `dist-pages/pages-config.js` |
 
-## Endpoints
+## Endpoints (Node edition)
+
+The Pages edition serves the same static asset names below its repository subpath and
+connects directly to the selected Wisp endpoint; it does not expose `/api/*` or `/chat`.
 
 ```
 GET  /                           the hub
@@ -213,32 +254,41 @@ public/index.html       the hub shell (all eight views)
 public/sw.js            service worker → Scramjet controller
 public/css/app.css      design system (5 themes)
 public/js/app.js        hub logic: tabs, catalogues, settings, shop
-public/js/proxy.js      Scramjet bootstrap, transports, URL handling
+public/js/proxy.js      base-aware Scramjet bootstrap, transports, URL handling
+public/js/web-api.js    suggestions/answers via Pine API or direct DuckDuckGo
 public/js/store.js      local-only state: profile, coins, history
 public/js/data.js       catalogues: apps, games, services, shop
 public/js/music.js      generative WebAudio stations
 public/js/ai.js         maths parser, conversions, assistant
-public/js/chat.js       chat client
+public/js/chat.js       chat client (static edition reports no relay)
 public/games/*.html     8 self-contained built-in games
-test/                   node --test: SSRF/rewrite units + full integration
+scripts/build-pages.mjs assembles the subpath-safe GitHub Pages site
+.github/workflows/      CI + automatic GitHub Pages deployment
+test/                   units, Node integration, server + Pages browser smokes
 ```
 
 ## Development
 
 ```bash
 npm ci
-npm test          # 20 tests: units + boot-the-server integration, incl. real Wisp TCP
-npm run dev       # watch mode with debug logging
+npm test          # 33 checks: units + Node integration + server/Pages browser smokes
+npm run build:pages
+npm run dev       # Node watch mode with debug logging
 ```
 
 The integration suite starts Pine next to a fixture website and verifies the Reader
 rewiring, SSRF refusals, chat relay, auth — and carries a real HTTP request through the
-Wisp tunnel end-to-end.
+Wisp tunnel end-to-end. The Pages smoke builds the real static site, serves it below
+`/Relay-hub/`, and verifies boot, games, AI, settings, chat/Reader degradation and that
+it makes no Pine API calls.
 
 ## Known limits
 
 Honest ones, inherent to web proxies:
 
+- The 100%-GitHub edition depends on third-party public Wisp endpoints for the actual
+  outbound TCP connections. They are outside this repo's control and may throttle or go
+  down; use Settings → Proxy to pin another endpoint, or the Node edition for your own.
 - Some sites fingerprint and refuse datacenter IPs regardless of engine (some banking,
   parts of Google search, aggressive Cloudflare). Trying the other transport, or running
   Pine from a residential connection, fixes most of these.

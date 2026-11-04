@@ -10,7 +10,11 @@ import {
   DEFAULT_TITLE, THEMES, NAME_COLORS, SHOP, PRO_PRICE, STUDY_TOPICS,
   SEARCH_ENGINES,
 } from "./data.js";
-import { proxy, normaliseInput, readerUrl, urlFromReaderLocation, faviconFor, defaultWispUrl } from "./proxy.js";
+import {
+  proxy, normaliseInput, readerUrl, urlFromReaderLocation, faviconFor,
+  defaultWispUrl, appUrl, STATIC_MODE,
+} from "./proxy.js";
+import { fetchSuggestions } from "./web-api.js";
 import { music } from "./music.js";
 import { askAI, resetAI } from "./ai.js";
 import { ChatClient } from "./chat.js";
@@ -22,6 +26,16 @@ const isEditing = () => /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tag
 
 const BADGE_ICONS = { leaf: "🍃", star: "⭐", diamond: "💎", crown: "👑" };
 const ENGINE_LABELS = { scramjet: "Scramjet", reader: "Reader", direct: "Direct" };
+const selectableEngine = (engine) =>
+  STATIC_MODE && engine === "reader" ? "scramjet" : (ENGINE_LABELS[engine] ? engine : "scramjet");
+
+// Reader is implemented by the Node server's /api/fetch endpoint. If a
+// static-edition profile somehow has it saved as the default, move it to
+// the full browser engine rather than navigating tabs to a 404.
+if (STATIC_MODE && state.settings.engine === "reader") {
+  state.settings.engine = "scramjet";
+  save();
+}
 
 /* ------------------------------------------------------------------ */
 /* Toasts                                                             */
@@ -57,9 +71,11 @@ function applyTheme() {
 function cloakInfo() {
   const s = state.settings;
   const preset = CLOAKS[s.cloakPreset] || CLOAKS.none;
+  const rawIcon = s.cloakIcon || preset.icon || "/favicon.svg";
   return {
     title: s.cloakTitle || preset.title || DEFAULT_TITLE,
-    icon: s.cloakIcon || preset.icon || "/favicon.svg",
+    // Internal icon paths must stay inside a GitHub Pages project subpath.
+    icon: rawIcon.startsWith("/") ? appUrl(rawIcon) : rawIcon,
   };
 }
 function applyCloak() {
@@ -117,6 +133,30 @@ document.addEventListener("click", (e) => {
   if (t) showView(t.dataset.gotoView);
 });
 
+function configureStaticUi() {
+  if (!STATIC_MODE) return;
+  document.documentElement.dataset.edition = "static";
+  // Reader's fetch/rewrite service only exists in the Node edition. Disable
+  // every entry point so a click explains itself instead of opening a 404.
+  $$('option[value="reader"]').forEach((option) => {
+    option.disabled = true;
+    if (!option.textContent.includes("server edition")) option.textContent += " — server edition";
+  });
+  $$('[data-act="engine-reader"], [data-retry="reader"]').forEach((button) => {
+    button.disabled = true;
+    button.title = "Reader needs the Node server edition";
+    if (!button.textContent.includes("server edition")) button.textContent += " (server edition)";
+  });
+  // Chat remains visible so the limitation is discoverable, but its form
+  // cannot pretend a relay exists.
+  const chatInput = $("#chat-input");
+  chatInput.disabled = true;
+  chatInput.placeholder = "Chat unavailable in the GitHub Pages edition";
+  $("#chat-form button[type='submit']").disabled = true;
+  $("#chat-newroom").disabled = true;
+  $("#chat-room-form button[type='submit']").disabled = true;
+}
+
 /* ------------------------------------------------------------------ */
 /* Omnibox with suggestions                                           */
 /* ------------------------------------------------------------------ */
@@ -168,10 +208,9 @@ function attachOmnibox(form, input, box, onGo) {
       try {
         abort?.abort();
         abort = new AbortController();
-        const res = await fetch(`/api/suggest?q=${encodeURIComponent(q)}`, { signal: abort.signal });
-        const data = await res.json();
+        const remoteSuggestions = await fetchSuggestions(q, { signal: abort.signal });
         if (myGen !== generation || input.value.trim() !== q) return;
-        const remote = (data.suggestions || []).filter((s) => s.toLowerCase() !== q.toLowerCase())
+        const remote = remoteSuggestions.filter((s) => s.toLowerCase() !== q.toLowerCase())
           .map((s) => ({ label: s, kind: "search" }));
         items = [...local, ...(items.find((i) => i.kind === "visit") ? [items.find((i) => i.kind === "visit")] : []), ...remote].slice(0, 9);
         render();
@@ -286,6 +325,7 @@ function startReaderPoll(tab) {
 async function navigateTab(tab, raw, { engine = tab.engine, fallbackOnce = true } = {}) {
   const url = /^https?:\/\//i.test(raw || "") ? raw : normaliseInput(raw, state.settings.search);
   if (!url) return;
+  engine = selectableEngine(engine);
   tab.engine = engine;
   tab.url = url;
   tab.lastError = null;
@@ -313,8 +353,9 @@ async function navigateTab(tab, raw, { engine = tab.engine, fallbackOnce = true 
     await proxy.init({ transport: state.settings.transport, customWisp: state.settings.customWisp });
   } catch (err) {
     if (fallbackOnce) {
-      toast("Scramjet couldn't start — opened in Reader instead.", "err", 4500);
-      return navigateTab(tab, url, { engine: "reader", fallbackOnce: false });
+      const fallback = STATIC_MODE ? "direct" : "reader";
+      toast(`Scramjet couldn't start — opened in ${ENGINE_LABELS[fallback]} instead.`, "err", 4500);
+      return navigateTab(tab, url, { engine: fallback, fallbackOnce: false });
     }
     return showTabError(tab, `The proxy engine failed to start: ${err.message}`);
   }
@@ -363,6 +404,7 @@ async function navigateTab(tab, raw, { engine = tab.engine, fallbackOnce = true 
 }
 
 function createTab({ url = "", engine = state.settings.engine, activate = true } = {}) {
+  engine = selectableEngine(engine);
   const iframe = document.createElement("iframe");
   iframe.setAttribute("allow", "autoplay; fullscreen; clipboard-read; clipboard-write; encrypted-media; picture-in-picture; web-share; microphone; camera; display-capture; gamepad; xr-spatial-tracking");
   iframe.setAttribute("referrerpolicy", "no-referrer");
@@ -413,6 +455,7 @@ function closeTab(id) {
 }
 
 function openInBrowser(raw, { engine = state.settings.engine, newTab = true } = {}) {
+  engine = selectableEngine(engine);
   const url = /^https?:\/\//i.test(raw || "") ? raw : normaliseInput(raw, state.settings.search);
   if (!url) return;
   showView("browse");
@@ -472,10 +515,11 @@ $("#nav-star").addEventListener("click", () => {
   syncBrowserChrome();
 });
 $("#engine-sel").addEventListener("change", (e) => {
+  const engine = selectableEngine(e.target.value);
   const t = activeTab();
-  if (!t) { state.settings.engine = e.target.value; save(); return; }
-  if (t.url) navigateTab(t, t.url, { engine: e.target.value });
-  else { t.engine = e.target.value; syncBrowserChrome(); }
+  if (!t) { state.settings.engine = engine; save(); syncBrowserChrome(); return; }
+  if (t.url) navigateTab(t, t.url, { engine });
+  else { t.engine = engine; syncBrowserChrome(); }
 });
 const menu = $("#browser-menu");
 $("#browser-menu-btn").addEventListener("click", (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });
@@ -494,7 +538,7 @@ menu.addEventListener("click", async (e) => {
   } else if (act === "fullscreen") {
     $(".browser").requestFullscreen?.().catch(() => toast("Fullscreen was blocked by the browser.", "err"));
   } else if (act === "copy" && t?.url) {
-    const link = `${location.origin}/?goto=${encodeURIComponent(t.url)}`;
+    const link = `${location.origin}${appUrl(`?goto=${encodeURIComponent(t.url)}`)}`;
     try { await navigator.clipboard.writeText(link); toast("Pine link copied 🔗"); }
     catch { toast(link, "", 6000); }
   } else if (act === "original" && t?.url) {
@@ -581,10 +625,17 @@ $("#hint-cloak").addEventListener("click", () => { applyCloak(); toast(`Tab disg
 $("#hint-engines").addEventListener("click", () => showView("settings"));
 
 async function refreshNetStats() {
-  // Exit IP (best-effort)
-  fetch("/api/egress").then((r) => r.json()).then((d) => {
-    $("#stat-egress").textContent = d.ip || "—";
-  }).catch(() => { $("#stat-egress").textContent = "—"; });
+  if (STATIC_MODE) {
+    // There is no Pine egress API (or Pine egress) in the static edition;
+    // the meaningful exit point is the selected public Wisp endpoint.
+    try { $("#stat-egress").textContent = new URL(proxy.wispUrl).host; }
+    catch { $("#stat-egress").textContent = "public Wisp"; }
+  } else {
+    // Exit IP (best-effort)
+    fetch(appUrl("api/egress")).then((r) => r.json()).then((d) => {
+      $("#stat-egress").textContent = d.ip || "—";
+    }).catch(() => { $("#stat-egress").textContent = "—"; });
+  }
   // Wisp ping
   const ms = await proxy.pingWisp();
   $("#stat-wisp").textContent = ms === null ? "unreachable" : `${ms} ms`;
@@ -610,7 +661,7 @@ let currentGame = null;
 function openGame(g) {
   currentGame = g;
   $("#game-title").textContent = `${g.emoji} ${g.name}`;
-  $("#game-frame").src = g.target;
+  $("#game-frame").src = appUrl(g.target);
   $("#game-overlay").hidden = false;
   $("#game-frame").focus();
 }
@@ -800,7 +851,11 @@ $("#chat-form").addEventListener("submit", (e) => {
   const input = $("#chat-input");
   const v = input.value.trim();
   if (!v) return;
-  if (!chat?.connected) { toast("Chat is reconnecting…", "err"); chat?.connect(chatRoomNow); return; }
+  if (!chat?.connected) {
+    toast(STATIC_MODE ? "Community chat isn't available in the GitHub Pages edition." : "Chat is reconnecting…", "err");
+    chat?.connect(chatRoomNow);
+    return;
+  }
   chat.sendMessage(v);
   input.value = "";
 });
@@ -1031,13 +1086,14 @@ function refreshSettings() {
   }).join("");
   badge.value = state.profile.badge;
   $("#set-effect").value = state.profile.effect;
-  $("#set-engine").value = s.engine;
+  $("#set-engine").value = selectableEngine(s.engine);
   $("#set-transport").value = s.transport;
   const searchSel = $("#set-search");
   if (!searchSel.options.length)
     searchSel.innerHTML = Object.entries(SEARCH_ENGINES).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("");
   searchSel.value = s.search;
   $("#set-wisp").value = s.customWisp;
+  if (STATIC_MODE) $("#set-wisp").placeholder = `blank = ${proxy.wispUrl}`;
   const cloakSel = $("#set-cloak");
   if (!cloakSel.options.length)
     cloakSel.innerHTML = Object.entries(CLOAKS).map(([k, v]) => `<option value="${k}">${v.label}</option>`).join("");
@@ -1058,7 +1114,15 @@ function refreshSettings() {
   $("#set-ai-key").value = s.aiKey;
   $("#set-ai-model").value = s.aiModel;
   renderHeader();
-  fetch("/api/stats").then((r) => r.json()).then((d) => {
+  if (STATIC_MODE) {
+    let endpoint = proxy.wispUrl;
+    try { endpoint = new URL(proxy.wispUrl).host; } catch { /* keep raw value */ }
+    $("#server-stats").textContent =
+      `Pine v1.0.0 · GitHub Pages edition · public Wisp: ${endpoint} · Reader and community chat need the Node server edition`;
+    $("#ver").textContent = "v1.0.0";
+    return;
+  }
+  fetch(appUrl("api/stats")).then((r) => r.json()).then((d) => {
     $("#server-stats").textContent =
       `Pine ${"v1.0.0"} · up ${Math.floor(d.uptime / 3600)}h ${Math.floor((d.uptime % 3600) / 60)}m · ${d.requests} requests · ${d.memoryMB} MB · chat: ${d.chat.inRooms} in rooms`;
     $("#ver").textContent = "v1.0.0";
@@ -1087,7 +1151,14 @@ $("#set-effect").addEventListener("change", (e) => {
   if (v !== "none" && !owns(`effect-${v}`)) { toast("That effect is in the shop 🪙", "err"); e.target.value = state.profile.effect; openProShop(); return; }
   state.profile.effect = v; save(); renderHeader();
 });
-$("#set-engine").addEventListener("change", (e) => { state.settings.engine = e.target.value; save(); $("#hint-engine-name").textContent = ENGINE_LABELS[e.target.value]; toast(`New tabs will use ${ENGINE_LABELS[e.target.value]}`); });
+$("#set-engine").addEventListener("change", (e) => {
+  const engine = selectableEngine(e.target.value);
+  e.target.value = engine;
+  state.settings.engine = engine;
+  save();
+  $("#hint-engine-name").textContent = ENGINE_LABELS[engine];
+  toast(`New tabs will use ${ENGINE_LABELS[engine]}`);
+});
 $("#set-transport").addEventListener("change", async (e) => {
   state.settings.transport = e.target.value; save();
   $("#status-transport").textContent = e.target.value;
@@ -1241,6 +1312,7 @@ document.addEventListener("keydown", (e) => {
 /* ------------------------------------------------------------------ */
 attachOmnibox($("#home-form"), $("#home-input"), $("#home-suggest"), (url) => openInBrowser(url));
 $("#watch-grid").replaceChildren(...WATCH_SERVICES.map(appTile));
+configureStaticUi();
 applyTheme();
 applyCloak();
 renderHeader();

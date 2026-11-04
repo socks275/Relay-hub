@@ -190,3 +190,131 @@ test("normaliseInput distinguishes URLs, hosts, searches and bangs", async () =>
     "https://ex.com/a"
   );
 });
+
+/* ---------------- GitHub Pages (static) edition ---------------- */
+
+test("proxy paths derive from a GitHub Pages project subpath; static mode uses public Wisp", async () => {
+  const oldLocation = globalThis.location;
+  const oldWindow = globalThis.window;
+  globalThis.location = {
+    protocol: "https:",
+    host: "student.github.io",
+    href: "https://student.github.io/Relay-hub/",
+  };
+  globalThis.window = {
+    PINE_STATIC: true,
+    PINE_WISP: ["wss://wisp.example/wisp/"],
+  };
+  try {
+    // A cache-busting query gives this test a fresh module instance whose
+    // top-level base/static detection sees the simulated Pages globals.
+    const pagesProxy = await import("../public/js/proxy.js?pages-subpath-test");
+    assert.equal(pagesProxy.APP_BASE, "/Relay-hub/");
+    assert.equal(pagesProxy.appUrl("games/snake.html"), "/Relay-hub/games/snake.html");
+    assert.equal(pagesProxy.PATHS.sw, "/Relay-hub/sw.js");
+    assert.equal(pagesProxy.PATHS.prefix, "/Relay-hub/lessons/");
+    assert.equal(pagesProxy.PATHS.scramjet, "/Relay-hub/scram/scramjet.js");
+    assert.equal(pagesProxy.STATIC_MODE, true);
+    assert.deepEqual(pagesProxy.PUBLIC_WISP_URLS, ["wss://wisp.example/wisp/"]);
+    assert.equal(pagesProxy.defaultWispUrl(), "wss://wisp.example/wisp/");
+    assert.equal(pagesProxy.defaultWispUrl("custom.example/wisp"), "wss://custom.example/wisp/");
+    assert.equal(
+      pagesProxy.urlFromReaderLocation(
+        "https://student.github.io/Relay-hub/api/fetch?mode=reader&url=" + encodeURIComponent("https://ex.com/b")
+      ),
+      "https://ex.com/b"
+    );
+  } finally {
+    globalThis.location = oldLocation;
+    if (oldWindow === undefined) delete globalThis.window;
+    else globalThis.window = oldWindow;
+  }
+});
+
+test("static web API calls DuckDuckGo directly and normalises responses", async () => {
+  const { fetchSuggestions, fetchInstantAnswer } = await import("../public/js/web-api.js");
+  const oldFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    if (String(url).includes("/ac/")) {
+      return { ok: true, json: async () => [{ phrase: "pine tree" }, "pine proxy", {}] };
+    }
+    return {
+      ok: true,
+      json: async () => ({
+        Heading: "Pine",
+        AbstractText: "A conifer.",
+        AbstractURL: "https://example.com/pine",
+        Answer: "A tree",
+        Definition: "An evergreen conifer.",
+        RelatedTopics: [
+          { Text: "Pine - details", FirstURL: "https://example.com/pine" },
+          { Text: "Missing URL" },
+        ],
+      }),
+    };
+  };
+  try {
+    assert.deepEqual(
+      await fetchSuggestions("pine", { staticMode: true }),
+      ["pine tree", "pine proxy"]
+    );
+    const answer = await fetchInstantAnswer("pine", { staticMode: true });
+    assert.equal(answer.heading, "Pine");
+    assert.equal(answer.abstract, "A conifer.");
+    assert.deepEqual(answer.related, [{ text: "Pine - details", url: "https://example.com/pine" }]);
+    assert.match(calls[0], /^https:\/\/duckduckgo\.com\/ac\//);
+    assert.match(calls[1], /^https:\/\/api\.duckduckgo\.com\//);
+  } finally {
+    globalThis.fetch = oldFetch;
+  }
+});
+
+test("GitHub Pages build is complete and subpath-safe", async () => {
+  const { mkdtemp, readFile, stat, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const path = await import("node:path");
+  const {
+    BUNDLE_FILES, buildPages, wispUrlsFromEnv,
+  } = await import("../scripts/build-pages.mjs");
+
+  assert.deepEqual(
+    wispUrlsFromEnv({ PINE_PAGES_WISP: "relay.example/wisp, wss://backup.example" }),
+    ["wss://relay.example/wisp/", "wss://backup.example/"]
+  );
+
+  const outDir = await mkdtemp(path.join(tmpdir(), "pine-pages-"));
+  try {
+    const customWisp = ["wss://pages-test.example/wisp/"];
+    const result = await buildPages({ outDir, wispUrls: customWisp });
+    assert.equal(result.outDir, outDir);
+    assert.ok(result.bundleBytes > 5_000_000, "all proxy bundles were copied");
+
+    const index = await readFile(path.join(outDir, "index.html"), "utf8");
+    assert.ok(index.includes('<script src="pages-config.js"></script>'));
+    assert.ok(index.indexOf("pages-config.js") < index.indexOf('src="js/app.js"'));
+    assert.ok(!/\b(?:href|src)="\//.test(index), "no root-absolute document assets remain");
+    assert.match(index, /blank = public endpoints with failover/);
+
+    const config = await readFile(path.join(outDir, "pages-config.js"), "utf8");
+    assert.match(config, /window\.PINE_STATIC = true/);
+    assert.match(config, /pages-test\.example/);
+
+    const sw = await readFile(path.join(outDir, "sw.js"), "utf8");
+    assert.match(sw, /importScripts\("controller\/controller\.sw\.js"\)/);
+
+    const manifest = JSON.parse(await readFile(path.join(outDir, "manifest.webmanifest"), "utf8"));
+    assert.equal(manifest.start_url, ".");
+    assert.equal(manifest.scope, ".");
+    assert.equal(manifest.icons[0].src, "favicon.svg");
+
+    for (const [, to] of BUNDLE_FILES) {
+      const info = await stat(path.join(outDir, to));
+      assert.ok(info.isFile() && info.size > 0, `generated ${to}`);
+    }
+    assert.ok((await stat(path.join(outDir, ".nojekyll"))).isFile());
+  } finally {
+    await rm(outDir, { recursive: true, force: true });
+  }
+});
