@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Relay Hub — deploy it to run it</title>
+<meta name="description" content="Relay Hub is a self-hosted Node.js web proxy. GitHub Pages can't run it — deploy it to any Node host in one click.">
+<meta name="color-scheme" content="dark">
+<style>
+  :root {
+    --ink: #eaf2ff;
+    --dim: #a9bad4;
+    --faint: #7d8ea9;
+    --gold: #fbbf24;
+    --aqua: #7dd3fc;
+    --mint: #34d399;
+    --line: rgba(190, 215, 255, .16);
+    --line-hi: rgba(210, 230, 255, .30);
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    color: var(--ink);
+    font-family: var(--sans);
+    background:
+      radial-gradient(1200px 700px at 78% -10%, rgba(125, 211, 252, .12), transparent 60%),
+      radial-gradient(900px 600px at 12% 108%, rgba(251, 191, 36, .07), transparent 60%),
+      #05080f;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 28px 20px 60px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { width: min(760px, 100%); }
+
+  .brand { display: flex; align-items: center; gap: 12px; margin-bottom: 30px; }
+  .brand .mark {
+    width: 42px; height: 42px; border-radius: 12px;
+    display: grid; place-items: center;
+    background: linear-gradient(135deg, #34d399, #22d3ee);
+    box-shadow: 0 12px 30px -14px rgba(52, 211, 153, .9);
+  }
+  .brand .mark svg { width: 22px; height: 22px; }
+  .brand .txt b {
+    display: block;
+    font: 500 17px/1 var(--sans);
+    letter-spacing: .28em;
+    text-transform: lowercase;
+    color: #f2f7ff;
+  }
+  .brand .txt i {
+    display: block;
+    font: 600 9px/1 var(--sans);
+    letter-spacing: .24em;
+    text-transform: uppercase;
+    font-style: normal;
+    color: var(--faint);
+    margin-top: 5px;
+  }
+
+  h1 {
+    font-size: clamp(24px, 4vw, 33px);
+    line-height: 1.2;
+    letter-spacing: -.025em;
+    margin: 0 0 14px;
+    font-weight: 650;
+  }
+  h1 em { font-style: normal; color: var(--gold); }
+
+  .lede {
+    font-size: 15px;
+    line-height: 1.65;
+    color: var(--dim);
+    margin: 0 0 26px;
+    max-width: 60ch;
+  }
+  .lede strong { color: #e6eefb; font-weight: 600; }
+
+  /* the explanation box */
+  .why {
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--gold);
+    background: rgba(251, 191, 36, .055);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 30px;
+  }
+  .why h2 {
+    font-size: 12px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 0 0 8px;
+    font-weight: 700;
+  }
+  .why p { margin: 0; font-size: 13.5px; line-height: 1.65; color: #c9d6e8; }
+  .why code {
+    font-family: var(--mono);
+    font-size: .92em;
+    background: rgba(6, 9, 14, .7);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 1px 5px;
+    color: #a7b4c6;
+  }
+
+  .section-label {
+    font-size: 10.5px;
+    letter-spacing: .2em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 700;
+    margin: 0 0 12px;
+  }
+
+  .deploys { display: grid; gap: 10px; margin-bottom: 32px; }
+  .deploy {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 15px 17px;
+    border-radius: 13px;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, rgba(18, 27, 43, .6), rgba(8, 13, 23, .6));
+    text-decoration: none;
+    color: inherit;
+    transition: border-color .18s, background .18s, transform .18s;
+  }
+  .deploy:hover {
+    border-color: var(--line-hi);
+    background: linear-gradient(180deg, rgba(26, 38, 58, .8), rgba(10, 16, 27, .8));
+    transform: translateY(-2px);
+  }
+  .deploy .ic {
+    width: 36px; height: 36px; flex: 0 0 auto;
+    border-radius: 10px;
+    display: grid; place-items: center;
+    font: 700 14px/1 var(--sans);
+  }
+  .deploy .body { flex: 1 1 auto; min-width: 0; }
+  .deploy .nm { font-weight: 600; font-size: 14px; color: #eef5ff; margin-bottom: 3px; }
+  .deploy .d { font-size: 12px; line-height: 1.45; color: var(--faint); }
+  .deploy .arrow { color: var(--faint); flex: 0 0 auto; transition: color .18s, transform .18s; }
+  .deploy:hover .arrow { color: var(--aqua); transform: translateX(3px); }
+  .deploy .arrow svg { width: 15px; height: 15px; display: block; }
+
+  .deploy.primary {
+    border-color: rgba(52, 211, 153, .4);
+    background: linear-gradient(180deg, rgba(16, 46, 38, .7), rgba(8, 20, 17, .7));
+  }
+  .deploy.primary:hover { border-color: rgba(52, 211, 153, .75); }
+  .deploy.primary .nm { color: #a7f3d0; }
+
+  /* self host */
+  pre {
+    margin: 0 0 26px;
+    padding: 15px 17px;
+    border-radius: 11px;
+    border: 1px solid var(--line);
+    background: rgba(6, 10, 17, .8);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    line-height: 1.75;
+    color: #c3d2e6;
+    overflow-x: auto;
+  }
+  pre .c { color: #5f7189; }
+  pre .g { color: #6ee7b7; }
+
+  .foot {
+    border-top: 1px solid rgba(148, 163, 184, .12);
+    padding-top: 20px;
+    font-size: 12.5px;
+    line-height: 1.7;
+    color: var(--faint);
+  }
+  .foot a { color: var(--aqua); text-decoration: none; }
+  .foot a:hover { text-decoration: underline; }
+  .foot p { margin: 0 0 8px; }
+
+  .note {
+    margin-top: 18px;
+    padding: 12px 15px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: rgba(125, 211, 252, .05);
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: #b9c9dd;
+  }
+  .note b { color: #cfeaff; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="brand">
+    <span class="mark">
+      <svg viewBox="0 0 24 24" fill="none"><path d="M12 3.2a8.8 8.8 0 105.9 15.2A10.4 10.4 0 0112 3.2z" fill="#06231b"/></svg>
+    </span>
+    <span class="txt"><b>relayhub</b><i>the web, from somewhere else</i></span>
+  </div>
+
+  <h1>This is a server, not a static site — <em>it has to be deployed</em>.</h1>
+
+  <p class="lede">
+    Relay Hub is a <strong>Node.js proxy</strong>. It fetches pages on the server and rewrites them
+    before sending them to your browser. That work can only happen somewhere that can run Node.
+    <strong>GitHub Pages cannot run Node</strong> — it only serves static files — so this URL shows
+    the project's README instead of the app.
+  </p>
+
+  <div class="why">
+    <h2>Why you're seeing a README</h2>
+    <p>
+      GitHub Pages was enabled on this repository, serving statically from <code>main</code>.
+      With no <code>index.html</code> in the repo, Pages rendered <code>README.md</code> as a web
+      page — including its screenshots. The app itself never ran, because nothing can run on Pages.
+    </p>
+  </div>
+
+  <p class="section-label">Deploy it in one click</p>
+
+  <div class="deploys">
+
+    <a class="deploy primary"
+       href="https://render.com/deploy?repo=https://github.com/socks275/Relay-hub"
+       target="_blank" rel="noopener">
+      <span class="ic" style="background:linear-gradient(150deg,#c7d2fe,#4f46e5);color:#0b1030">R</span>
+      <span class="body">
+        <span class="nm">Render — recommended</span>
+        <span class="d">Reads render.yaml, free tier, HTTPS included. Set RELAY_PASS when prompted.</span>
+      </span>
+      <span class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>
+    </a>
+
+    <a class="deploy"
+       href="https://railway.com/new/template?template=https://github.com/socks275/Relay-hub"
+       target="_blank" rel="noopener">
+      <span class="ic" style="background:linear-gradient(150deg,#f5d0fe,#9333ea);color:#2a0a3d">R</span>
+      <span class="body">
+        <span class="nm">Railway</span>
+        <span class="d">Deploy from the repo using railway.json. Usage-based, no free tier.</span>
+      </span>
+      <span class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>
+    </a>
+
+    <a class="deploy"
+       href="https://fly.io/launch?repo=https://github.com/socks275/Relay-hub"
+       target="_blank" rel="noopener">
+      <span class="ic" style="background:linear-gradient(150deg,#c4b5fd,#6d28d9);color:#150a2b">F</span>
+      <span class="body">
+        <span class="nm">Fly.io</span>
+        <span class="d">Uses fly.toml and the Dockerfile. Run <code style="font-family:monospace">fly launch --copy-config</code> locally for full control.</span>
+      </span>
+      <span class="arrow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h13M13 6l6 6-6 6"/></svg></span>
+    </a>
+
+  </div>
+
+  <p class="section-label">Or run it yourself</p>
+
+  <pre><span class="c"># no dependencies — Node 18+ is all you need</span>
+git clone https://github.com/socks275/Relay-hub.git
+cd Relay-hub
+node server.js
+<span class="g"># → http://localhost:3000</span>
+
+<span class="c"># or with Docker</span>
+docker run -p 3000:3000 relay-hub</pre>
+
+  <div class="note">
+    <b>Read this before deploying publicly.</b> A public proxy fetches any URL on request, on your
+    server's IP and your bill. Set <code style="font-family:monospace">RELAY_PASS</code> to require a
+    password, and keep TLS in front (Render, Railway and Fly all do this for you).
+  </div>
+
+  <div class="foot">
+    <p><a href="https://github.com/socks275/Relay-hub">Repository</a> · <a href="https://github.com/socks275/Relay-hub#readme">Documentation</a> · MIT licensed</p>
+    <p>Sites that fingerprint datacenter IPs (Google, YouTube, most banks) may refuse to load through any proxy. Mind the <a href="https://github.com/socks275/Relay-hub#known-limits">known limits</a>.</p>
+  </div>
+
+</div>
+</body>
+</html>

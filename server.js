@@ -46,6 +46,7 @@ const html = require('./src/rewrite/html');
 const cache = require('./src/cache');
 const netlib = require('./src/net');
 const { relayHeaders } = require('./src/headers');
+const { friendlyError } = require('./src/errors');
 
 /* ------------------------------------------------------------------ */
 /*  Configuration                                                     */
@@ -414,38 +415,6 @@ ${extra ? `<p style="margin-top:18px"><small>${extra}</small></p>` : ''}
   res.end(body);
 }
 
-function friendlyError(err) {
-  if (!err) return 'Something went wrong.\nPlease try again.';
-  const code = err.code || '';
-  const msg = String(err.message || err);
-  const cause = err.cause && (err.cause.code || err.cause.message);
-  const all = `${msg} ${cause || ''} ${code}`;
-
-  if (err.name === 'AbortError' || code === 'ETIMEDOUT' || /timed out|timeout/i.test(all)) {
-    return 'The site took too long to respond.\nRelay gives up after ' + Math.round(TIMEOUT / 1000) + ' seconds — the site may be down or blocking proxies.';
-  }
-  if (code === 'EPRIVATE' || /Blocked: local\/private/i.test(all)) {
-    return 'That address points inside the private network.\nRelay refuses to connect to local, private or cloud-metadata addresses.';
-  }
-  if (code === 'ENOTFOUND' || /ENOTFOUND|getaddrinfo/i.test(all)) {
-    return 'Couldn’t find that domain.\nThe address may be misspelled, or the site no longer exists.';
-  }
-  if (code === 'EAI_AGAIN' || /EAI_AGAIN/i.test(all)) {
-    return 'DNS lookup failed.\nThe proxy server couldn’t resolve that hostname right now.';
-  }
-  if (/CERT|SSL|TLS|EPROTO|self.signed|ERR_TLS/i.test(all)) {
-    return 'Secure connection failed.\nThe site’s TLS certificate could not be verified.';
-  }
-  if (code === 'ECONNREFUSED') return 'The site refused the connection.\nIt may be down, or firewalled against proxies.';
-  if (code === 'ECONNRESET') return 'The connection was reset by the site.\nThis often means the site is blocking automated access.';
-  if (code === 'EREDIRECT' || /redirect/i.test(all)) return 'The site redirected too many times.\nIts redirect loop was stopped by the proxy.';
-  if (code === 'ETOOLARGE') return 'That response was too large to relay.';
-  if (code === 'ENETUNREACH' || code === 'EHOSTUNREACH') return 'The network is unreachable from this server.';
-  if (/ETIMEDOUT/.test(all)) return 'The connection timed out.\nThe site never answered.';
-  if (err instanceof TargetError) return err.message;
-  return msg.replace(/^fetch failed$/i, 'Couldn’t reach that site.\nThe request failed before any response came back.');
-}
-
 /* ------------------------------------------------------------------ */
 /*  Reading request bodies                                            */
 /* ------------------------------------------------------------------ */
@@ -581,7 +550,7 @@ async function proxyRequest(req, res, target, opts = {}) {
   } catch (err) {
     clearTimeout(timer);
     log(`${colour(35, method)} ${target} → ${colour(31, 'ERROR')} ${err.code || err.message}`);
-    return errorPage(req, res, 502, target, friendlyError(err));
+    return errorPage(req, res, 502, target, friendlyError(err, TIMEOUT));
   }
   clearTimeout(timer);
 
@@ -627,7 +596,7 @@ async function proxyRequest(req, res, target, opts = {}) {
           res.writeHead(status, headers);
           return res.end();
         }
-        return errorPage(req, res, 502, finalUrl, friendlyError(err));
+        return errorPage(req, res, 502, finalUrl, friendlyError(err, TIMEOUT));
       }
       if (buf.length <= MAX_HTML) {
         // Cache key includes the session (the nonce is embedded) and mode.
@@ -698,7 +667,7 @@ async function proxyRequest(req, res, target, opts = {}) {
     try {
       buf = await upstream.readAll(ups.stream, MAX_HTML);
     } catch (err) {
-      return errorPage(req, res, 502, finalUrl, friendlyError(err));
+      return errorPage(req, res, 502, finalUrl, friendlyError(err, TIMEOUT));
     }
     const source = decodeBuffer(buf, detectCharset(contentType, buf));
     const out = html.rewriteCss(source, finalUrl, { reader: !!opts.reader });
@@ -1049,7 +1018,7 @@ async function route(req, res) {
       data.requests = stats.requests;
       return sendJson(req, res, 200, data);
     } catch (err) {
-      return sendJson(req, res, 200, { ip: 'unknown', requests: stats.requests, error: friendlyError(err) });
+      return sendJson(req, res, 200, { ip: 'unknown', requests: stats.requests, error: friendlyError(err, TIMEOUT) });
     }
   }
 

@@ -325,3 +325,48 @@ test('survives malformed markup without throwing', () => {
     assert.doesNotThrow(() => rewriteHtml(doc, { url: 'https://example.com/' }), `threw on ${doc}`);
   }
 });
+
+/* ------------------------------------------------------------------ */
+/*  Error classification                                              */
+/* ------------------------------------------------------------------ */
+
+test('a TLS-worded connection reset is not reported as a certificate error', () => {
+  const { friendlyError } = require('../src/errors');
+  // Node's own message for a RST during handshake contains "TLS", which used
+  // to be misclassified as a certificate failure.
+  const err = Object.assign(
+    new Error('Client network socket disconnected before secure TLS connection was established'),
+    { code: 'ECONNRESET' }
+  );
+  const msg = friendlyError(err, 30000);
+  assert.ok(!/certificate/i.test(msg), `should not mention certificates, got: ${msg}`);
+  assert.match(msg, /closed before the site responded/i);
+});
+
+test('genuine certificate failures are still recognised', () => {
+  const { friendlyError } = require('../src/errors');
+  for (const code of [
+    'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+    'DEPTH_ZERO_SELF_SIGNED_CERT',
+    'CERT_HAS_EXPIRED',
+    'ERR_TLS_CERT_ALTNAME_INVALID',
+  ]) {
+    const msg = friendlyError(Object.assign(new Error('handshake failed'), { code }), 30000);
+    assert.match(msg, /certificate/i, `${code} should be a certificate error`);
+  }
+});
+
+test('DNS, refused, timeout and loop errors are classified distinctly', () => {
+  const { friendlyError } = require('../src/errors');
+  const cases = [
+    ['ENOTFOUND', /find that domain/i],
+    ['ECONNREFUSED', /refused/i],
+    ['ETIMEDOUT', /too long to respond/i],
+    ['EREDIRECT', /redirect/i],
+    ['EPRIVATE', /private network/i],
+  ];
+  for (const [code, re] of cases) {
+    const msg = friendlyError(Object.assign(new Error('x'), { code }), 30000);
+    assert.match(msg, re, `${code} misclassified: ${msg}`);
+  }
+});
