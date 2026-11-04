@@ -470,3 +470,41 @@ test('ETag revalidation returns 304', async () => {
   const second = await get(relayPort, '/', { 'if-none-match': etag });
   assert.strictEqual(second.status, 304);
 });
+
+/* ---------------- Graceful degradation ---------------- */
+
+test('a failing subresource returns a placeholder, not an HTML error page', async () => {
+  // Point at a closed port so the upstream fails deterministically.
+  const dead = encodeURIComponent('http://127.0.0.1:9/missing.png');
+
+  const asImage = await get(relayPort, '/raw?url=' + dead, {
+    accept: 'image/avif,image/webp,*/*',
+    'sec-fetch-dest': 'image',
+  });
+  assert.strictEqual(asImage.status, 502);
+  assert.match(asImage.headers['content-type'], /image\/gif/);
+  assert.strictEqual(asImage.raw.subarray(0, 6).toString(), 'GIF89a', 'a real 1x1 gif');
+  assert.strictEqual(asImage.headers['x-relay-error'], 'ECONNREFUSED');
+
+  const asScript = await get(relayPort, '/raw?url=' + dead, {
+    accept: '*/*',
+    'sec-fetch-dest': 'script',
+  });
+  assert.strictEqual(asScript.status, 502);
+  assert.match(asScript.headers['content-type'], /text\/plain/);
+  assert.strictEqual(asScript.body, '', 'no HTML dumped into a script tag');
+  assert.ok(!/<html/i.test(asScript.body));
+});
+
+test('diagnose endpoint reports reachability without the proxy in the way', async () => {
+  const r = await get(relayPort, '/api/diagnose');
+  assert.strictEqual(r.status, 200);
+  const j = JSON.parse(r.body);
+  assert.ok(['full', 'partial', 'no-egress'].includes(j.verdict), `unexpected verdict ${j.verdict}`);
+  assert.ok(Array.isArray(j.probes) && j.probes.length > 0);
+  assert.strictEqual(typeof j.advice, 'string');
+  for (const p of j.probes) {
+    assert.strictEqual(typeof p.host, 'string');
+    assert.strictEqual(typeof p.ok, 'boolean');
+  }
+});
