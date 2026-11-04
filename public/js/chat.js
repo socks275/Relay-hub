@@ -1,6 +1,9 @@
-/* Pine — community chat client. Talks to /chat on this server.
- * Auto-reconnects with backoff and re-joins the current room. */
+/* Pine — community chat client. Talks to /chat on the Node server.
+ * Auto-reconnects with backoff and re-joins the current room. The static
+ * GitHub Pages edition has no chat relay to connect to, so it reports that
+ * once instead of retrying a nonexistent websocket forever. */
 import { state } from "./store.js";
+import { appUrl, STATIC_MODE } from "./proxy.js";
 
 export class ChatClient {
   constructor({ onEvent, onStatus }) {
@@ -12,11 +15,25 @@ export class ChatClient {
     this._backoff = 1000;
     this._wantOpen = false;
     this._reconnectTimer = null;
+    this.staticMode = STATIC_MODE;
+    this._staticNoticeSent = false;
   }
 
   connect(room = "lobby") {
     this.room = room;
     this._wantOpen = true;
+    if (this.staticMode) {
+      this.connected = false;
+      this.onStatus?.("static edition");
+      if (!this._staticNoticeSent) {
+        this._staticNoticeSent = true;
+        this.onEvent?.({
+          t: "notice",
+          text: "Community chat needs Pine's Node server relay, so it is unavailable in the 100% GitHub Pages edition. Browsing, apps, games, AI, music and your local profile all work here.",
+        });
+      }
+      return;
+    }
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       this.join(room);
       return;
@@ -25,11 +42,12 @@ export class ChatClient {
   }
 
   _open() {
+    if (this.staticMode) return;
     this.onStatus?.("connecting");
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     let ws;
     try {
-      ws = new WebSocket(`${proto}//${location.host}/chat`);
+      ws = new WebSocket(`${proto}//${location.host}${appUrl("chat")}`);
     } catch {
       this._scheduleReconnect();
       return;

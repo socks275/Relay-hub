@@ -1,0 +1,63 @@
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: node --check server.js
+      - run: npm test
+      - run: npm run build:pages
+      # This repository's pre-existing Pages site used the legacy branch
+      # builder (which published README.md). configure-pages' enablement
+      # only creates a *missing* site; explicitly move an existing site to
+      # the workflow builder, or create it if a fork has Pages disabled.
+      - name: Point GitHub Pages at this workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          api="https://api.github.com/repos/${{ github.repository }}/pages"
+          headers=(
+            -H "Accept: application/vnd.github+json"
+            -H "Authorization: Bearer ${GH_TOKEN}"
+            -H "X-GitHub-Api-Version: 2022-11-28"
+          )
+          code="$(curl -sS -o /tmp/pages.json -w "%{http_code}" "${headers[@]}" "$api")"
+          if [ "$code" = "404" ]; then
+            method="POST"
+          elif [ "$code" = "200" ]; then
+            method="PUT"
+          else
+            cat /tmp/pages.json
+            echo "Unexpected GitHub Pages API status: $code" >&2
+            exit 1
+          fi
+          curl -fsSL -X "$method" "${headers[@]}" "$api" -d '{"build_type":"workflow"}'
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist-pages
+      - id: deployment
+        uses: actions/deploy-pages@v4

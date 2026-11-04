@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "PINE_LOG_LEVEL=debug node --watch server.js",
-    "test": "node --test test/unit.test.js test/integration.test.js test/smoke.test.js",
+    "build:pages": "node scripts/build-pages.mjs",
+    "test": "node --test test/unit.test.js test/integration.test.js test/smoke.test.js test/pages-smoke.test.js",
     "check": "node --check server.js && npm test"
   },
   "engines": {

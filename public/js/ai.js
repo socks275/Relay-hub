@@ -2,9 +2,11 @@
  *
  * Works out of the box with no API key: maths is solved locally by a real
  * expression parser, unit conversions are local too, and general questions
- * go to DuckDuckGo Instant Answers via /api/answer. Power users can add an
- * OpenAI-compatible API key in Settings — it stays in the browser and is
- * sent straight from here to that API, never to the Pine server. */
+ * go to DuckDuckGo Instant Answers (via Pine's API in server mode, directly
+ * in the static edition). Power users can add an OpenAI-compatible API key
+ * in Settings — it stays in the browser and is sent straight from here to
+ * that API, never to a Pine server. */
+import { fetchInstantAnswer } from "./web-api.js";
 
 /* ---------------- maths ---------------- */
 
@@ -247,8 +249,7 @@ async function localAnswer(q) {
 
   // Web lookup.
   try {
-    const res = await fetch(`/api/answer?q=${encodeURIComponent(q)}`);
-    const data = await res.json();
+    const data = await fetchInstantAnswer(q);
     const parts = [];
     if (data.answer) parts.push(`**${data.answer}**`);
     if (data.definition) parts.push(data.definition);

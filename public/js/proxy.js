@@ -15,18 +15,59 @@
  */
 import { SEARCH_ENGINES, BANGS } from "./data.js";
 
+/* The server edition is served from `/`; the GitHub Pages edition is served
+ * from a project subpath such as `/Relay-hub/`. Derive that base from the
+ * document at runtime so neither edition (nor forks under another repo
+ * name) needs build-time path configuration. Guards keep this module safe
+ * to import from Node unit tests, where there is no document. */
+const DOC_URL =
+  (typeof document !== "undefined" && document.baseURI) ||
+  globalThis.location?.href ||
+  "http://localhost/";
+let APP_BASE = "/";
+try {
+  APP_BASE = new URL(".", DOC_URL).pathname || "/";
+} catch { /* keep the root default */ }
+if (!APP_BASE.endsWith("/")) APP_BASE += "/";
+export { APP_BASE };
+
+export function appUrl(path = "") {
+  return `${APP_BASE}${String(path).replace(/^\/+/, "")}`;
+}
+
+export const STATIC_MODE = typeof window !== "undefined" && window.PINE_STATIC === true;
+
+/* Third-party public Wisp endpoints used only by the static edition. The
+ * pages build supplies its authoritative pool with window.PINE_WISP (its
+ * normal output is the same default list). A custom server saved in
+ * Settings always takes priority over this pool. */
+const DEFAULT_PUBLIC_WISP_URLS = [
+  "wss://wisp.webmc.fun/",
+  "wss://wisp.freewisp.org/",
+  "wss://wisp.mercurywork.shop/",
+  "wss://wisp.terbiumon.top/wisp/",
+  "wss://anura.pro/",
+];
+const CONFIGURED_WISP_URLS =
+  typeof window !== "undefined" && Array.isArray(window.PINE_WISP)
+    ? window.PINE_WISP.map((u) => String(u).trim()).filter(Boolean)
+    : [];
+export const PUBLIC_WISP_URLS = Object.freeze([...new Set(
+  CONFIGURED_WISP_URLS.length ? CONFIGURED_WISP_URLS : DEFAULT_PUBLIC_WISP_URLS
+)]);
+
 export const PATHS = {
-  sw: "/sw.js",
-  prefix: "/lessons/",
-  scramjet: "/scram/scramjet.js",
-  wasm: "/scram/scramjet.wasm",
-  utils: "/scram/scramjet-utils.js",
-  controllerApi: "/controller/controller.api.js",
-  inject: "/controller/controller.inject.js",
-  wisp: "/wisp/",
+  sw: appUrl("sw.js"),
+  prefix: appUrl("lessons/"),
+  scramjet: appUrl("scram/scramjet.js"),
+  wasm: appUrl("scram/scramjet.wasm"),
+  utils: appUrl("scram/scramjet-utils.js"),
+  controllerApi: appUrl("controller/controller.api.js"),
+  inject: appUrl("controller/controller.inject.js"),
+  wisp: appUrl("wisp/"),
   transports: {
-    libcurl: "/clients/libcurl-client.js",
-    epoxy: "/clients/epoxy-client.js",
+    libcurl: appUrl("clients/libcurl-client.js"),
+    epoxy: appUrl("clients/epoxy-client.js"),
   },
 };
 
@@ -57,7 +98,7 @@ export function normaliseInput(raw, searchKey = "duckduckgo") {
 }
 
 export function readerUrl(url) {
-  return `/api/fetch?mode=reader&url=${encodeURIComponent(url)}`;
+  return `${appUrl("api/fetch")}?mode=reader&url=${encodeURIComponent(url)}`;
 }
 
 // When a reader iframe navigates, its (same-origin) location carries the
@@ -65,7 +106,7 @@ export function readerUrl(url) {
 export function urlFromReaderLocation(href) {
   try {
     const u = new URL(href);
-    if (u.pathname === "/api/fetch") return u.searchParams.get("url") || "";
+    if (u.pathname.endsWith("/api/fetch")) return u.searchParams.get("url") || "";
   } catch { /* cross-origin or garbage */ }
   return "";
 }
@@ -140,16 +181,72 @@ async function makeTransport(name, wispUrl) {
   return new Ctor({ wisp: wispUrl });
 }
 
-export function defaultWispUrl(custom = "") {
-  const c = String(custom || "").trim();
-  if (c) {
-    try {
-      const u = new URL(c.match(/^wss?:\/\//) ? c : `wss://${c}`);
-      if (!u.pathname.endsWith("/")) u.pathname += "/";
-      return u.href;
-    } catch { /* fall through to default */ }
+function normaliseWispUrl(value) {
+  const c = String(value || "").trim();
+  if (!c) return "";
+  try {
+    const u = new URL(c.match(/^wss?:\/\//) ? c : `wss://${c}`);
+    if (u.protocol !== "ws:" && u.protocol !== "wss:") return "";
+    if (!u.pathname.endsWith("/")) u.pathname += "/";
+    return u.href;
+  } catch {
+    return "";
   }
-  return `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${PATHS.wisp}`;
+}
+
+export function defaultWispUrl(custom = "") {
+  const customUrl = normaliseWispUrl(custom);
+  if (customUrl) return customUrl;
+  if (STATIC_MODE) return normaliseWispUrl(PUBLIC_WISP_URLS[0]) || DEFAULT_PUBLIC_WISP_URLS[0];
+  const loc = globalThis.location;
+  return `${loc?.protocol === "https:" ? "wss:" : "ws:"}//${loc?.host || "localhost"}${PATHS.wisp}`;
+}
+
+function wispCandidates(custom = "") {
+  const customUrl = normaliseWispUrl(custom);
+  if (customUrl) return [customUrl];
+  if (!STATIC_MODE) return [defaultWispUrl()];
+  return [...new Set(PUBLIC_WISP_URLS.map(normaliseWispUrl).filter(Boolean))];
+}
+
+function probeWisp(url, timeoutMs = 3500) {
+  return new Promise((resolve) => {
+    let done = false;
+    let ws;
+    const finish = (ms) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { ws?.close(); } catch { /* ignore */ }
+      resolve(ms);
+    };
+    const timer = setTimeout(() => finish(null), timeoutMs);
+    try {
+      const t0 = performance.now();
+      ws = new WebSocket(url);
+      ws.onopen = () => finish(Math.round(performance.now() - t0));
+      ws.onerror = () => finish(null);
+      ws.onclose = () => finish(null);
+    } catch {
+      finish(null);
+    }
+  });
+}
+
+/* Pick the first public endpoint that answers from *this* browser/network.
+ * School and workplace filters often block one Wisp host but not another.
+ * Checks are sequential so a failed first choice costs at most the short
+ * probe timeout and we do not open a burst of sockets on page load. */
+async function chooseWispUrl(custom = "") {
+  const candidates = wispCandidates(custom);
+  if (!STATIC_MODE || normaliseWispUrl(custom) || candidates.length <= 1)
+    return candidates[0] || defaultWispUrl(custom);
+  for (const url of candidates) {
+    if ((await probeWisp(url)) !== null) return url;
+  }
+  // Keep the first choice so the real transport can surface a useful error
+  // (for example when a probe socket is dropped but a retry would work).
+  return candidates[0];
 }
 
 /* ------------------------------------------------------------------ */
@@ -184,6 +281,9 @@ class ProxyEngine {
     if (this._initPromise) return this._initPromise;
     this._setStatus("loading");
     this._initPromise = (async () => {
+      // In static mode this finds a reachable public Wisp host while the
+      // service worker and bundles are loading. Server mode resolves at once.
+      const wispChoice = chooseWispUrl(customWisp);
       const sw = await registerSw();
       if (!sw) throw new Error("Service worker didn't activate. Reload and try again.");
       await loadScript(PATHS.scramjet);
@@ -194,6 +294,7 @@ class ProxyEngine {
       } catch {
         this.utils = false; // plugins are an enhancement, not a requirement
       }
+      this.wispUrl = await wispChoice;
       const transportObj = await makeTransport(this.transportName, this.wispUrl);
       const { Controller, config } = window.$scramjetController;
       config.prefix = PATHS.prefix;
@@ -221,6 +322,7 @@ class ProxyEngine {
     this.transportName = name;
     this.wispUrl = defaultWispUrl(customWisp);
     if (!this.controller) return this.init({ transport: name, customWisp });
+    this.wispUrl = await chooseWispUrl(customWisp);
     const transportObj = await makeTransport(name, this.wispUrl);
     this.controller.setTransport(transportObj);
   }
@@ -285,20 +387,7 @@ class ProxyEngine {
 
   // Open+close a raw WebSocket to the Wisp endpoint and time it.
   pingWisp() {
-    const url = this.wispUrl;
-    return new Promise((resolve) => {
-      let done = false;
-      const finish = (ms) => { if (!done) { done = true; resolve(ms); } };
-      try {
-        const t0 = performance.now();
-        const ws = new WebSocket(url);
-        const timer = setTimeout(() => { try { ws.close(); } catch { /* */ } finish(null); }, 6000);
-        ws.onopen = () => { clearTimeout(timer); const ms = Math.round(performance.now() - t0); try { ws.close(); } catch { /* */ } finish(ms); };
-        ws.onerror = () => { clearTimeout(timer); finish(null); };
-      } catch {
-        finish(null);
-      }
-    });
+    return probeWisp(this.wispUrl, 6000);
   }
 
   // Nuke proxy state (service worker, caches, Scramjet cookies DB).
