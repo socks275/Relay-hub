@@ -31,9 +31,11 @@ jobs:
       - run: npm test
       - run: npm run build:pages
       # This repository's pre-existing Pages site used the legacy branch
-      # builder (which published README.md). configure-pages' enablement
-      # only creates a *missing* site; explicitly move an existing site to
-      # the workflow builder, or create it if a fork has Pages disabled.
+      # builder (which published README.md). Try to move it to the workflow
+      # builder via API. GitHub reserves Pages-settings changes to repo
+      # admins — a workflow token usually gets 403 — so: if the site is
+      # already on the workflow builder, do nothing; if the switch is
+      # refused, fail with the exact one-click manual fix.
       - name: Point GitHub Pages at this workflow
         env:
           GH_TOKEN: ${{ github.token }}
@@ -45,16 +47,25 @@ jobs:
             -H "X-GitHub-Api-Version: 2022-11-28"
           )
           code="$(curl -sS -o /tmp/pages.json -w "%{http_code}" "${headers[@]}" "$api")"
+          build_type="$(jq -r '.build_type // empty' /tmp/pages.json 2>/dev/null || true)"
+          if [ "$code" = "200" ] && [ "$build_type" = "workflow" ]; then
+            echo "GitHub Pages already uses the GitHub Actions builder."
+            exit 0
+          fi
           if [ "$code" = "404" ]; then
             method="POST"
           elif [ "$code" = "200" ]; then
             method="PUT"
           else
             cat /tmp/pages.json
-            echo "Unexpected GitHub Pages API status: $code" >&2
+            echo "::error::Unexpected GitHub Pages API status: $code"
             exit 1
           fi
-          curl -fsSL -X "$method" "${headers[@]}" "$api" -d '{"build_type":"workflow"}'
+          if ! curl -fsSL -X "$method" "${headers[@]}" "$api" -d '{"build_type":"workflow"}'; then
+            echo "::error::GitHub would not let this workflow change the Pages source (admin-only setting). One-time fix, 20 seconds: repo Settings → Pages → Build and deployment → Source → GitHub Actions. Then re-run this workflow."
+            exit 1
+          fi
+          echo "GitHub Pages now uses the GitHub Actions builder."
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

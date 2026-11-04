@@ -33,9 +33,13 @@ GitHub Actions rebuilds and publishes the site automatically on every push to `m
 (`.github/workflows/pages.yml`). The generated site is subpath-safe, so forks work at
 `https://<user>.github.io/<repo>/` too.
 
-**One-time owner setting:** if the Pages workflow says Pages is not enabled, open
-**GitHub repo → Settings → Pages → Build and deployment → Source: GitHub Actions**.
-That is still entirely inside GitHub; after that, deployments are automatic.
+**One-time owner setting (20 seconds, still 100% GitHub):** this repo's Pages site
+predates the workflow and is set to the legacy *branch* builder — which is why it used
+to publish this README instead of the app. Open **repo → Settings → Pages → Build and
+deployment → Source → GitHub Actions**. The workflow tries to flip this itself, but
+GitHub reserves Pages-settings changes to repository admins (the API returns
+`403 Resource not accessible by integration` to workflow/app tokens), so the owner has
+to click it once. After that, every deployment is automatic.
 
 How can a static GitHub site be a working proxy?
 
