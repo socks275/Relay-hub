@@ -1,17 +1,28 @@
-Pine is licensed under the GNU Affero General Public License v3.0
-(see ./LICENSE). It is a combined work built on the following
-open-source components, whose copyrights and licenses remain with
-their respective authors:
+Relay Hub is licensed under the GNU Affero General Public License v3.0
+(see ./LICENSE). The deployed site is a combined work built on the
+following open-source components, whose copyrights and licenses remain
+with their respective authors:
 
   Scramjet, Scramjet Controller, Scramjet Utils  — Mercury Workshop — AGPL-3.0-only
   epoxy-transport, epoxy-tls                     — Mercury Workshop — AGPL-3.0-only
   libcurl-transport                              — Mercury Workshop — AGPL-3.0-only
-  wisp-js (Wisp protocol client & server)        — Mercury Workshop — LGPL-3.0-or-later
-  proxy-transports                               — Mercury Workshop — MIT
   libcurl.js                                     — ading2210        — LGPL-3.0-or-later
-  ws                                             — Einar Otto Stangvik et al. — MIT
 
 Full license texts ship with each package inside node_modules, and the
-exact pinned versions Pine integrates are declared in package.json /
-package-lock.json. If you run a modified Pine as a network service, the
-AGPL requires you to offer your users the corresponding source.
+exact pinned versions Relay Hub integrates are declared in package.json /
+package-lock.json.
+
+Relay Hub itself has no server component: GitHub Pages serves static files
+and the proxy runs in the visitor's browser. If you run a modified Relay
+Hub as a network service (for example by adding a backend), the AGPL
+requires you to offer your users the corresponding source.
+
+Third-party network services, not distributed with this software:
+
+  Public Wisp endpoints — operated by third parties; Relay Hub probes a
+  pool of them and uses the fastest that answers from your network, or a
+  custom endpoint you configure in Settings.
+
+  Public CORS mirrors (allorigins, codetabs, corsproxy.io, cors.lol,
+  cors.workers.dev) — used only by Simple mode, only when Scramjet cannot
+  reach a Wisp endpoint.

@@ -18,22 +18,26 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: node --check server.js
       - run: npm test
 
-  docker:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build image
-        run: docker build -t pine:test .
-      - name: Smoke test
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Check the built site
         run: |
-          docker run -d --name pine -p 3000:3000 pine:test
-          for i in $(seq 1 20); do
-            curl -fs http://127.0.0.1:3000/healthz && break || sleep 1
-          done
-          curl -fs http://127.0.0.1:3000/api/config | grep -q '"engines"'
-          curl -fsI http://127.0.0.1:3000/scram/scramjet.wasm | grep -qi 'application/wasm'
-          docker logs pine
-          docker rm -f pine
+          set -e
+          test -f dist/index.html
+          test -f dist/sw.js
+          test -f dist/scram/scramjet.wasm
+          test -f dist/controller/controller.sw.js
+          test -f dist/clients/libcurl-client.js
+          test -f dist/relay-config.js
+          grep -q 'relay-config.js' dist/index.html
+          ! grep -q '__BASE__' dist/404.html

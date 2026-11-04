@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Relay Hub</title>
+    <meta name="robots" content="noindex" />
+    <!--
+      GitHub Pages serves this file for any path it doesn't have, so deep
+      links into the app land back on the real entry point. __BASE__ is
+      replaced with the site's absolute URL by scripts/build.mjs; without a
+      build we fall back to the directory of the current URL.
+    -->
+    <script>
+      (function () {
+        var base = "__BASE__";
+        var target = base || new URL("./", location.href).href;
+        if (!/\/$/.test(target)) target += "/";
+        location.replace(target + (location.hash || ""));
+      })();
+    </script>
+  </head>
+  <body>
+    <p>Opening Relay Hub… <a href="./">continue</a></p>
+  </body>
+</html>
