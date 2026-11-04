@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: relay-hub
+    runtime: node
+    plan: free
+    buildCommand: ""
+    startCommand: node server.js
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: RELAY_LOG_LEVEL
+        value: info
+      # Set these in the Render dashboard (sync: false = don't store in git).
+      - key: RELAY_PASS
+        sync: false
+      - key: RELAY_REPO_URL
+        sync: false
